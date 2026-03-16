@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.ProjProjectMapper">
+
+	<resultMap type="ProjProject" id="ProjProjectResult">
+		<id     property="projectId"      column="project_id"       />
+		<result property="projectName"    column="project_name"     />
+		<result property="projectStatus"  column="project_status"   />
+		<result property="manager"        column="manager"          />
+		<result property="deptId"         column="dept_id"          />
+		<result property="priority"       column="priority"         />
+		<result property="startDate"      column="start_date"       />
+		<result property="endDate"        column="end_date"         />
+		<result property="description"    column="description"      />
+		<result property="delFlag"        column="del_flag"         />
+		<result property="createBy"       column="create_by"        />
+		<result property="createTime"     column="create_time"      />
+		<result property="updateBy"       column="update_by"        />
+		<result property="updateTime"     column="update_time"      />
+		<result property="remark"         column="remark"           />
+		<result property="deptName"       column="dept_name"        />
+	</resultMap>
+
+	<sql id="selectProjectVo">
+		select p.project_id, p.project_name, p.project_status, p.manager, p.dept_id, p.priority,
+		       p.start_date, p.end_date, p.description, p.del_flag, p.create_by, p.create_time,
+		       p.update_by, p.update_time, p.remark, d.dept_name
+		from proj_project p
+		left join sys_dept d on p.dept_id = d.dept_id
+	</sql>
+
+	<select id="selectProjectList" parameterType="ProjProject" resultMap="ProjProjectResult">
+		<include refid="selectProjectVo"/>
+		<where>
+			p.del_flag = '0'
+			<if test="projectName != null and projectName != ''">
+				AND p.project_name like concat('%', #{projectName}, '%')
+			</if>
+			<if test="projectStatus != null and projectStatus != ''">
+				AND p.project_status = #{projectStatus}
+			</if>
+			<if test="manager != null and manager != ''">
+				AND p.manager = #{manager}
+			</if>
+			<if test="priority != null and priority != ''">
+				AND p.priority = #{priority}
+			</if>
+			<!-- 数据范围过滤 -->
+			${params.dataScope}
+		</where>
+		order by p.project_id desc
+	</select>
+
+	<select id="selectProjectAll" resultMap="ProjProjectResult">
+		select p.project_id, p.project_name, p.project_status, p.manager
+		from proj_project p
+		where p.del_flag = '0'
+		order by p.project_id desc
+	</select>
+
+	<select id="selectProjectById" parameterType="Long" resultMap="ProjProjectResult">
+		<include refid="selectProjectVo"/>
+		where p.project_id = #{projectId} and p.del_flag = '0'
+	</select>
+
+	<select id="checkProjectNameUnique" parameterType="String" resultMap="ProjProjectResult">
+		<include refid="selectProjectVo"/>
+		where p.project_name = #{projectName} and p.del_flag = '0' limit 1
+	</select>
+
+	<insert id="insertProject" parameterType="ProjProject" useGeneratedKeys="true" keyProperty="projectId">
+		insert into proj_project(
+			<if test="projectName != null and projectName != ''">project_name,</if>
+			<if test="projectStatus != null and projectStatus != ''">project_status,</if>
+			<if test="manager != null and manager != ''">manager,</if>
+			<if test="deptId != null">dept_id,</if>
+			<if test="priority != null and priority != ''">priority,</if>
+			<if test="startDate != null">start_date,</if>
+			<if test="endDate != null">end_date,</if>
+			<if test="description != null and description != ''">description,</if>
+			<if test="remark != null and remark != ''">remark,</if>
+			<if test="createBy != null and createBy != ''">create_by,</if>
+			create_time
+		)values(
+			<if test="projectName != null and projectName != ''">#{projectName},</if>
+			<if test="projectStatus != null and projectStatus != ''">#{projectStatus},</if>
+			<if test="manager != null and manager != ''">#{manager},</if>
+			<if test="deptId != null">#{deptId},</if>
+			<if test="priority != null and priority != ''">#{priority},</if>
+			<if test="startDate != null">#{startDate},</if>
+			<if test="endDate != null">#{endDate},</if>
+			<if test="description != null and description != ''">#{description},</if>
+			<if test="remark != null and remark != ''">#{remark},</if>
+			<if test="createBy != null and createBy != ''">#{createBy},</if>
+			sysdate()
+		)
+	</insert>
+
+	<update id="updateProject" parameterType="ProjProject">
+		update proj_project
+		<set>
+			<if test="projectName != null and projectName != ''">project_name = #{projectName},</if>
+			<if test="projectStatus != null and projectStatus != ''">project_status = #{projectStatus},</if>
+			<if test="manager != null and manager != ''">manager = #{manager},</if>
+			<if test="deptId != null">dept_id = #{deptId},</if>
+			<if test="priority != null and priority != ''">priority = #{priority},</if>
+			<if test="startDate != null">start_date = #{startDate},</if>
+			<if test="endDate != null">end_date = #{endDate},</if>
+			<if test="description != null">description = #{description},</if>
+			<if test="remark != null">remark = #{remark},</if>
+			<if test="updateBy != null and updateBy != ''">update_by = #{updateBy},</if>
+			update_time = sysdate()
+		</set>
+		where project_id = #{projectId}
+	</update>
+
+	<delete id="deleteProjectByIds" parameterType="Long">
+		update proj_project set del_flag = '2' where project_id in
+		<foreach collection="array" item="projectId" open="(" separator="," close=")">
+			#{projectId}
+		</foreach>
+	</delete>
+
+</mapper>

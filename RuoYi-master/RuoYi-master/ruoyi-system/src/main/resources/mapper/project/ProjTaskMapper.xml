@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.ProjTaskMapper">
+
+	<resultMap type="ProjTask" id="ProjTaskResult">
+		<id     property="taskId"         column="task_id"          />
+		<result property="taskName"       column="task_name"        />
+		<result property="projectId"      column="project_id"       />
+		<result property="taskStatus"     column="task_status"      />
+		<result property="priority"       column="priority"         />
+		<result property="assignee"       column="assignee"         />
+		<result property="dueDate"        column="due_date"         />
+		<result property="completeDate"   column="complete_date"    />
+		<result property="description"    column="description"      />
+		<result property="delFlag"        column="del_flag"         />
+		<result property="createBy"       column="create_by"        />
+		<result property="createTime"     column="create_time"      />
+		<result property="updateBy"       column="update_by"        />
+		<result property="updateTime"     column="update_time"      />
+		<result property="remark"         column="remark"           />
+		<result property="projectName"    column="project_name"     />
+	</resultMap>
+
+	<sql id="selectTaskVo">
+		select t.task_id, t.task_name, t.project_id, t.task_status, t.priority, t.assignee,
+		       t.due_date, t.complete_date, t.description, t.del_flag, t.create_by, t.create_time,
+		       t.update_by, t.update_time, t.remark, p.project_name
+		from proj_task t
+		left join proj_project p on t.project_id = p.project_id
+	</sql>
+
+	<select id="selectTaskList" parameterType="ProjTask" resultMap="ProjTaskResult">
+		<include refid="selectTaskVo"/>
+		<where>
+			t.del_flag = '0'
+			<if test="taskName != null and taskName != ''">
+				AND t.task_name like concat('%', #{taskName}, '%')
+			</if>
+			<if test="projectId != null">
+				AND t.project_id = #{projectId}
+			</if>
+			<if test="taskStatus != null and taskStatus != ''">
+				AND t.task_status = #{taskStatus}
+			</if>
+			<if test="priority != null and priority != ''">
+				AND t.priority = #{priority}
+			</if>
+			<if test="assignee != null and assignee != ''">
+				AND t.assignee = #{assignee}
+			</if>
+			<if test="params.beginDueDate != null and params.beginDueDate != ''">
+				AND t.due_date &gt;= #{params.beginDueDate}
+			</if>
+			<if test="params.endDueDate != null and params.endDueDate != ''">
+				AND t.due_date &lt;= #{params.endDueDate}
+			</if>
+		</where>
+		order by t.task_id desc
+	</select>
+
+	<select id="selectTaskById" parameterType="Long" resultMap="ProjTaskResult">
+		<include refid="selectTaskVo"/>
+		where t.task_id = #{taskId} and t.del_flag = '0'
+	</select>
+
+	<select id="countTaskByProjectId" parameterType="Long" resultType="Integer">
+		select count(1) from proj_task
+		where project_id = #{projectId} and del_flag = '0'
+		  and task_status in ('0', '1')
+	</select>
+
+	<insert id="insertTask" parameterType="ProjTask" useGeneratedKeys="true" keyProperty="taskId">
+		insert into proj_task(
+			<if test="taskName != null and taskName != ''">task_name,</if>
+			<if test="projectId != null">project_id,</if>
+			<if test="taskStatus != null and taskStatus != ''">task_status,</if>
+			<if test="priority != null and priority != ''">priority,</if>
+			<if test="assignee != null and assignee != ''">assignee,</if>
+			<if test="dueDate != null">due_date,</if>
+			<if test="completeDate != null">complete_date,</if>
+			<if test="description != null and description != ''">description,</if>
+			<if test="remark != null and remark != ''">remark,</if>
+			<if test="createBy != null and createBy != ''">create_by,</if>
+			create_time
+		)values(
+			<if test="taskName != null and taskName != ''">#{taskName},</if>
+			<if test="projectId != null">#{projectId},</if>
+			<if test="taskStatus != null and taskStatus != ''">#{taskStatus},</if>
+			<if test="priority != null and priority != ''">#{priority},</if>
+			<if test="assignee != null and assignee != ''">#{assignee},</if>
+			<if test="dueDate != null">#{dueDate},</if>
+			<if test="completeDate != null">#{completeDate},</if>
+			<if test="description != null and description != ''">#{description},</if>
+			<if test="remark != null and remark != ''">#{remark},</if>
+			<if test="createBy != null and createBy != ''">#{createBy},</if>
+			sysdate()
+		)
+	</insert>
+
+	<update id="updateTask" parameterType="ProjTask">
+		update proj_task
+		<set>
+			<if test="taskName != null and taskName != ''">task_name = #{taskName},</if>
+			<if test="projectId != null">project_id = #{projectId},</if>
+			<if test="taskStatus != null and taskStatus != ''">task_status = #{taskStatus},</if>
+			<if test="priority != null and priority != ''">priority = #{priority},</if>
+			<if test="assignee != null and assignee != ''">assignee = #{assignee},</if>
+			<if test="dueDate != null">due_date = #{dueDate},</if>
+			<if test="completeDate != null">complete_date = #{completeDate},</if>
+			<if test="description != null">description = #{description},</if>
+			<if test="remark != null">remark = #{remark},</if>
+			<if test="updateBy != null and updateBy != ''">update_by = #{updateBy},</if>
+			update_time = sysdate()
+		</set>
+		where task_id = #{taskId}
+	</update>
+
+	<delete id="deleteTaskByIds" parameterType="Long">
+		update proj_task set del_flag = '2' where task_id in
+		<foreach collection="array" item="taskId" open="(" separator="," close=")">
+			#{taskId}
+		</foreach>
+	</delete>
+
+</mapper>

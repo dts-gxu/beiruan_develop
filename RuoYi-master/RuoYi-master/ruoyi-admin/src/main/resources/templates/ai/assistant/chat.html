@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:shiro="http://www.pollix.at/thymeleaf/shiro">
+<head>
+	<th:block th:include="include :: header('AI开发助手')" />
+	<style>
+		.ai-container { display: flex; height: calc(100vh - 30px); }
+		/* 左侧步骤导航 */
+		.ai-steps { width: 220px; background: #2f4050; color: #a7b1c2; padding: 15px 0; overflow-y: auto; flex-shrink: 0; }
+		.ai-steps .step-item { padding: 12px 20px; cursor: pointer; border-left: 3px solid transparent; transition: all 0.2s; font-size: 13px; }
+		.ai-steps .step-item:hover { background: #293846; color: #fff; }
+		.ai-steps .step-item.active { background: #293846; color: #fff; border-left-color: #1ab394; }
+		.ai-steps .step-item .step-num { display: inline-block; width: 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 50%; background: #3e5771; color: #fff; font-size: 11px; margin-right: 8px; }
+		.ai-steps .step-item.active .step-num { background: #1ab394; }
+		.ai-steps .step-item.done .step-num { background: #1ab394; }
+		.ai-steps .step-item.done .step-num::after { content: '\f00c'; font-family: FontAwesome; }
+		.ai-steps .step-title { font-size: 15px; font-weight: 600; color: #fff; padding: 15px 20px 10px; }
+		/* 右侧主区域 */
+		.ai-main { flex: 1; display: flex; flex-direction: column; background: #f3f3f4; }
+		.ai-header { background: #fff; padding: 12px 20px; border-bottom: 1px solid #e7eaec; display: flex; align-items: center; justify-content: space-between; }
+		.ai-header h4 { margin: 0; font-size: 16px; color: #2f4050; }
+		.ai-header .model-info { font-size: 12px; color: #999; }
+		/* 聊天区域 */
+		.chat-area { flex: 1; overflow-y: auto; padding: 20px; }
+		.chat-message { margin-bottom: 16px; display: flex; }
+		.chat-message.user { justify-content: flex-end; }
+		.chat-message .avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+		.chat-message.ai .avatar { background: #1ab394; color: #fff; margin-right: 10px; }
+		.chat-message.user .avatar { background: #3498db; color: #fff; margin-left: 10px; order: 2; }
+		.chat-message .bubble { max-width: 75%; padding: 12px 16px; border-radius: 8px; font-size: 13px; line-height: 1.6; word-wrap: break-word; white-space: pre-wrap; }
+		.chat-message.ai .bubble { background: #fff; border: 1px solid #e7eaec; color: #333; }
+		.chat-message.user .bubble { background: #3498db; color: #fff; }
+		.chat-message .bubble table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 12px; }
+		.chat-message .bubble table th, .chat-message .bubble table td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }
+		.chat-message .bubble table th { background: #f5f5f5; }
+		.chat-message .bubble code { background: #f0f0f0; padding: 2px 4px; border-radius: 3px; font-size: 12px; }
+		.chat-message .bubble pre { background: #2d2d2d; color: #f8f8f2; padding: 12px; border-radius: 4px; overflow-x: auto; }
+		.chat-message .bubble pre code { background: none; color: inherit; }
+		/* 输入区域 */
+		.chat-input-area { background: #fff; border-top: 1px solid #e7eaec; padding: 15px 20px; }
+		.chat-input-wrapper { display: flex; gap: 10px; }
+		.chat-input-wrapper textarea { flex: 1; border: 1px solid #e5e6e7; border-radius: 4px; padding: 10px; font-size: 13px; resize: none; height: 60px; outline: none; }
+		.chat-input-wrapper textarea:focus { border-color: #1ab394; }
+		.chat-input-wrapper .btn-send { width: 80px; background: #1ab394; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+		.chat-input-wrapper .btn-send:hover { background: #18a689; }
+		.chat-input-wrapper .btn-send:disabled { background: #ccc; cursor: not-allowed; }
+		/* 快捷操作按钮 */
+		.quick-actions { padding: 10px 0 5px; display: flex; gap: 8px; flex-wrap: wrap; }
+		.quick-actions .btn-quick { padding: 4px 12px; font-size: 12px; border: 1px solid #1ab394; color: #1ab394; background: #fff; border-radius: 20px; cursor: pointer; }
+		.quick-actions .btn-quick:hover { background: #1ab394; color: #fff; }
+		/* 加载动画 */
+		.typing-indicator { display: inline-flex; gap: 4px; padding: 8px 12px; }
+		.typing-indicator span { width: 8px; height: 8px; border-radius: 50%; background: #1ab394; animation: typing 1.4s infinite ease-in-out; }
+		.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+		.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+		@keyframes typing { 0%,80%,100%{transform:scale(0)} 40%{transform:scale(1)} }
+		/* 结果面板 */
+		.result-panel { background: #fff; border: 1px solid #e7eaec; border-radius: 4px; margin: 10px 0; }
+		.result-panel .panel-header { padding: 10px 15px; background: #f5f5f5; border-bottom: 1px solid #e7eaec; font-weight: 600; font-size: 13px; display: flex; justify-content: space-between; }
+		.result-panel .panel-body { padding: 15px; max-height: 400px; overflow-y: auto; }
+		/* 文件上传 */
+		.upload-area { padding: 8px 0 5px; display: flex; align-items: center; gap: 10px; }
+		.upload-area .btn-upload { padding: 5px 14px; font-size: 12px; border: 1px dashed #1ab394; color: #1ab394; background: #f8fff8; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+		.upload-area .btn-upload:hover { background: #e8f8f0; border-style: solid; }
+		.upload-area .file-info { font-size: 12px; color: #666; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+		.upload-area .file-info .remove-file { color: #e74c3c; cursor: pointer; margin-left: 6px; }
+	</style>
+</head>
+<body class="gray-bg">
+	<div class="ai-container">
+		<!-- 左侧步骤导航 -->
+		<div class="ai-steps">
+			<div class="step-title"><i class="fa fa-magic"></i> 需求分析流程</div>
+			<div class="step-item active" data-step="1.1" onclick="switchStep(this)">
+				<span class="step-num">1</span>上传需求文档
+			</div>
+			<div class="step-item" data-step="1.3" onclick="switchStep(this)">
+				<span class="step-num">2</span>AI提取关键信息
+			</div>
+			<div class="step-item" data-step="1.4" onclick="switchStep(this)">
+				<span class="step-num">3</span>RuoYi适配分析
+			</div>
+			<div class="step-item" data-step="1.5" onclick="switchStep(this)">
+				<span class="step-num">4</span>完整性评估
+			</div>
+			<div class="step-item" data-step="1.6" onclick="switchStep(this)">
+				<span class="step-num">5</span>生成完整性报告
+			</div>
+			<div class="step-item" data-step="1.7" onclick="switchStep(this)">
+				<span class="step-num">6</span>生成结构化JSON
+			</div>
+			<div class="step-title" style="margin-top:15px; border-top:1px solid #3e5771; padding-top:15px;">
+				<i class="fa fa-comments"></i> 自由对话
+			</div>
+			<div class="step-item" data-step="chat" onclick="switchStep(this)">
+				<span class="step-num"><i class="fa fa-comment" style="font-size:10px"></i></span>AI自由聊天
+			</div>
+		</div>
+
+		<!-- 右侧主区域 -->
+		<div class="ai-main">
+			<div class="ai-header">
+				<h4 id="currentStepTitle"><i class="fa fa-magic"></i> 步骤1.1 — 上传需求文档</h4>
+				<span class="model-info" id="modelInfo">模型加载中...</span>
+			</div>
+
+			<!-- 聊天消息区域 -->
+			<div class="chat-area" id="chatArea">
+				<div class="chat-message ai">
+					<div class="avatar"><i class="fa fa-robot"></i></div>
+					<div class="bubble">
+						<b>欢迎使用AI开发助手！</b><br/><br/>
+						我是你的AI架构师，精通RuoYi v4.8.2框架。<br/><br/>
+						<b>开始第一步：</b>请在下方输入框中粘贴你的业务需求文档内容，或者直接描述你要开发的功能。<br/><br/>
+						<b>例如：</b>我要开发一个项目任务管理模块，包括项目管理和任务管理两个功能...
+					</div>
+				</div>
+			</div>
+
+			<!-- 快捷操作 + 输入区域 -->
+			<div class="chat-input-area">
+				<div class="quick-actions" id="quickActions">
+					<button class="btn-quick" onclick="quickAction('analyze')"><i class="fa fa-search"></i> 提取关键信息</button>
+					<button class="btn-quick" onclick="quickAction('adapt')"><i class="fa fa-cogs"></i> RuoYi适配分析</button>
+					<button class="btn-quick" onclick="quickAction('evaluate')"><i class="fa fa-check-circle"></i> 完整性评估</button>
+					<button class="btn-quick" onclick="quickAction('report')"><i class="fa fa-file-text"></i> 生成报告</button>
+					<button class="btn-quick" onclick="quickAction('json')"><i class="fa fa-code"></i> 生成JSON</button>
+					<button class="btn-quick" onclick="quickAction('all')"><i class="fa fa-forward"></i> 一键执行全流程</button>
+				</div>
+				<div class="upload-area">
+					<label class="btn-upload" for="fileUpload"><i class="fa fa-paperclip"></i> 上传需求文件</label>
+					<input type="file" id="fileUpload" style="display:none" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.md,.png,.jpg,.jpeg,.gif,.bmp,.webp" onchange="handleFileUpload(this)" />
+					<span class="file-info" id="fileInfo">(支持 PDF/Word/Excel/图片/TXT，最大20MB)</span>
+				</div>
+				<div class="chat-input-wrapper">
+					<textarea id="userInput" placeholder="输入需求文档内容或问题...（Shift+Enter换行，Enter发送）" onkeydown="handleKeyDown(event)"></textarea>
+					<button class="btn-send" id="btnSend" onclick="sendMessage()"><i class="fa fa-paper-plane"></i> 发送</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<th:block th:include="include :: footer" />
+	<script>
+		var prefix = ctx + "ai/assistant";
+		var currentStep = "1.1";
+		var analysisHistory = {};
+		var isProcessing = false;
+
+		/* 初始化 */
+		$(function() {
+			$('#modelInfo').text('DeepSeek V3 | 就绪');
+			$('#userInput').focus();
+		});
+
+		/* 切换步骤 */
+		function switchStep(el) {
+			$('.step-item').removeClass('active');
+			$(el).addClass('active');
+			currentStep = $(el).data('step');
+			var titles = {
+				'1.1': '步骤1.1 — 上传需求文档',
+				'1.3': '步骤1.3 — AI提取关键信息',
+				'1.4': '步骤1.4 — RuoYi适配分析',
+				'1.5': '步骤1.5 — 完整性评估',
+				'1.6': '步骤1.6 — 生成完整性报告',
+				'1.7': '步骤1.7 — 生成结构化JSON',
+				'chat': '自由对话'
+			};
+			$('#currentStepTitle').html('<i class="fa fa-magic"></i> ' + (titles[currentStep] || ''));
+		}
+
+		/* 发送消息 */
+		function sendMessage() {
+			var msg = $('#userInput').val().trim();
+			if (!msg || isProcessing) return;
+			appendMessage('user', msg);
+			$('#userInput').val('');
+			
+			// 任何时候发送的文本都保存为需求文档（如果还没有的话）
+			if (!analysisHistory['1.1'] && msg.length > 50) {
+				analysisHistory['1.1'] = msg;
+				markStepDone('1.1');
+			}
+			
+			callAiChat(msg);
+		}
+
+		/* 键盘事件 */
+		function handleKeyDown(e) {
+			if (e.key === 'Enter' && !e.shiftKey) {
+				e.preventDefault();
+				sendMessage();
+			}
+		}
+
+		/* 添加消息到聊天区 */
+		function appendMessage(role, content) {
+			var icon = role === 'ai' ? '<i class="fa fa-robot"></i>' : '<i class="fa fa-user"></i>';
+			var html = '<div class="chat-message ' + role + '">'
+				+ '<div class="avatar">' + icon + '</div>'
+				+ '<div class="bubble">' + formatMarkdown(content) + '</div>'
+				+ '</div>';
+			$('#chatArea').append(html);
+			scrollToBottom();
+		}
+
+		/* 添加加载动画 */
+		function showTyping() {
+			var html = '<div class="chat-message ai" id="typingIndicator">'
+				+ '<div class="avatar"><i class="fa fa-robot"></i></div>'
+				+ '<div class="bubble"><div class="typing-indicator"><span></span><span></span><span></span></div></div>'
+				+ '</div>';
+			$('#chatArea').append(html);
+			scrollToBottom();
+		}
+
+		function hideTyping() {
+			$('#typingIndicator').remove();
+		}
+
+		/* 调用AI聊天接口 */
+		function callAiChat(message) {
+			isProcessing = true;
+			$('#btnSend').prop('disabled', true);
+			$('#modelInfo').text('DeepSeek V3 | 思考中...');
+			showTyping();
+
+			$.ajax({
+				url: prefix + '/chat',
+				type: 'POST',
+				data: { message: message },
+				timeout: 180000,
+				success: function(res) {
+					hideTyping();
+					if (res.code == 0) {
+						var reply = res.data || res.msg;
+						appendMessage('ai', reply);
+						analysisHistory[currentStep] = reply;
+					} else {
+						appendMessage('ai', '❌ 错误：' + res.msg);
+					}
+				},
+				error: function(xhr, status, error) {
+					hideTyping();
+					if (status === 'timeout') {
+						appendMessage('ai', '❌ 请求超时，请稍后重试。建议缩短输入内容长度。');
+					} else {
+						appendMessage('ai', '❌ 网络错误：' + error);
+					}
+				},
+				complete: function() {
+					isProcessing = false;
+					$('#btnSend').prop('disabled', false);
+					$('#modelInfo').text('DeepSeek V3 | 就绪');
+				}
+			});
+		}
+
+		/* 调用流程API */
+		function callStepApi(url, data, stepKey) {
+			isProcessing = true;
+			$('#btnSend').prop('disabled', true);
+			$('#modelInfo').text('DeepSeek V3 | 分析中...');
+			showTyping();
+
+			$.ajax({
+				url: prefix + url,
+				type: 'POST',
+				data: data,
+				timeout: 180000,
+				success: function(res) {
+					hideTyping();
+					if (res.code == 0) {
+						var reply = res.data || res.msg;
+						appendMessage('ai', reply);
+						analysisHistory[stepKey] = reply;
+						markStepDone(stepKey);
+					} else {
+						appendMessage('ai', '❌ 错误：' + res.msg);
+					}
+				},
+				error: function(xhr, status, error) {
+					hideTyping();
+					appendMessage('ai', '❌ 请求失败：' + (status === 'timeout' ? '请求超时' : error));
+				},
+				complete: function() {
+					isProcessing = false;
+					$('#btnSend').prop('disabled', false);
+					$('#modelInfo').text('DeepSeek V3 | 就绪');
+				}
+			});
+		}
+
+		/* 获取需求文档内容（优先历史 > 输入框） */
+		function getDocContent() {
+			var doc = analysisHistory['1.1'];
+			if (doc) return doc;
+			var input = $('#userInput').val().trim();
+			if (input) {
+				analysisHistory['1.1'] = input;
+				$('#userInput').val('');
+				markStepDone('1.1');
+				return input;
+			}
+			return null;
+		}
+
+		/* 快捷操作 */
+		function quickAction(action) {
+			if (isProcessing) return;
+
+			if (action === 'analyze') {
+				var doc = getDocContent();
+				if (!doc) { layer.msg('请先上传文件或在输入框输入需求文档', {icon: 5}); return; }
+				appendMessage('user', '[步骤1.3] 请提取需求文档的关键信息');
+				callStepApi('/analyze', { document: doc }, '1.3');
+			}
+			else if (action === 'adapt') {
+				var prev = analysisHistory['1.3'];
+				if (!prev) { layer.msg('请先执行"提取关键信息"步骤', {icon: 5}); return; }
+				appendMessage('user', '[步骤1.4] 请进行RuoYi适配分析');
+				callStepApi('/adapt', { analysisResult: prev }, '1.4');
+			}
+			else if (action === 'evaluate') {
+				var prev = (analysisHistory['1.3'] || '') + '\n\n' + (analysisHistory['1.4'] || '');
+				if (!analysisHistory['1.3']) { layer.msg('请先执行"提取关键信息"步骤', {icon: 5}); return; }
+				appendMessage('user', '[步骤1.5] 请进行完整性评估');
+				callStepApi('/evaluate', { analysisResult: prev }, '1.5');
+			}
+			else if (action === 'report') {
+				var all = (analysisHistory['1.3'] || '') + '\n\n' + (analysisHistory['1.4'] || '') + '\n\n' + (analysisHistory['1.5'] || '');
+				if (!analysisHistory['1.5']) { layer.msg('请先执行"完整性评估"步骤', {icon: 5}); return; }
+				appendMessage('user', '[步骤1.6] 请生成需求完整性报告');
+				callReportApi(all);
+			}
+			else if (action === 'json') {
+				var all = Object.values(analysisHistory).join('\n\n---\n\n');
+				if (!analysisHistory['1.3']) { layer.msg('请先执行需求分析流程', {icon: 5}); return; }
+				appendMessage('user', '[步骤1.7] 请生成结构化需求JSON');
+				callStepApi('/generateJson', { analysisResult: all }, '1.7');
+			}
+			else if (action === 'all') {
+				var doc = getDocContent();
+				if (!doc) { layer.msg('请先上传文件或在输入框输入需求文档', {icon: 5}); return; }
+				appendMessage('user', '[全流程] 开始执行完整需求分析流程（文档长度：' + doc.length + '字符）');
+				runFullPipeline(doc);
+			}
+		}
+
+		/* 一键执行全流程（链式调用） */
+		function runFullPipeline(doc) {
+			appendMessage('ai', '<b>开始全流程分析</b>，将依次执行：提取关键信息 → 适配分析 → 完整性评估 → 生成报告 → 生成JSON\n\n这可能需要3-8分钟，请耐心等待...');
+			isProcessing = true;
+			$('#btnSend').prop('disabled', true);
+
+			pipelineStep('/analyze', { document: doc }, '1.3', '关键信息提取', function() {
+				pipelineStep('/adapt', { analysisResult: analysisHistory['1.3'] }, '1.4', 'RuoYi适配分析', function() {
+					var allPrev = analysisHistory['1.3'] + '\n\n' + analysisHistory['1.4'];
+					pipelineStep('/evaluate', { analysisResult: allPrev }, '1.5', '完整性评估', function() {
+						var reportData = analysisHistory['1.3'] + '\n\n' + analysisHistory['1.4'] + '\n\n' + analysisHistory['1.5'];
+						pipelineStep('/report', { analysisResult: reportData }, '1.6', '完整性报告', function() {
+							// 报告完成后添加下载按钮
+							appendMessage('ai', '<button class="btn btn-sm btn-success" onclick="downloadWordReport()" style="margin-top:5px;"><i class="fa fa-download"></i> 下载Word报告</button>');
+							var allResult = Object.values(analysisHistory).join('\n\n---\n\n');
+							pipelineStep('/generateJson', { analysisResult: allResult }, '1.7', '结构化JSON', function() {
+								appendMessage('ai', '<b>全流程分析完成！</b>\n\n所有步骤已完成，你可以：\n1. 检查上方每个步骤的输出结果\n2. 点击"下载Word报告"获取完整性报告\n3. 复制JSON用于第二步设计生成\n4. 在对话框中继续提问进行调整');
+								pipelineComplete();
+							});
+						});
+					});
+				});
+			});
+		}
+
+		/* 全流程单步执行 */
+		function pipelineStep(url, data, stepKey, stepName, onSuccess) {
+			$('#modelInfo').text('DeepSeek V3 | 步骤' + stepKey + ' ' + stepName + '...');
+			showTyping();
+			$.ajax({
+				url: prefix + url, type: 'POST',
+				data: data, timeout: 180000,
+				success: function(res) {
+					hideTyping();
+					if (res.code == 0) {
+						analysisHistory[stepKey] = res.data;
+						appendMessage('ai', '<b>步骤' + stepKey + '完成 — ' + stepName + '</b>\n\n' + res.data);
+						markStepDone(stepKey);
+						if (onSuccess) onSuccess();
+					} else {
+						appendMessage('ai', stepName + '失败：' + res.msg);
+						pipelineComplete();
+					}
+				},
+				error: function(xhr, status) {
+					hideTyping();
+					appendMessage('ai', stepName + '请求失败：' + (status === 'timeout' ? '请求超时' : status));
+					pipelineComplete();
+				}
+			});
+		}
+
+		function pipelineComplete() {
+			isProcessing = false;
+			$('#btnSend').prop('disabled', false);
+			$('#modelInfo').text('DeepSeek V3 | 就绪');
+		}
+
+		/* 调用报告生成API（步骤1.6） */
+		function callReportApi(analysisData) {
+			isProcessing = true;
+			$('#btnSend').prop('disabled', true);
+			$('#modelInfo').text('DeepSeek V3 | 生成报告中...');
+			showTyping();
+
+			$.ajax({
+				url: prefix + '/report',
+				type: 'POST',
+				data: { analysisResult: analysisData },
+				timeout: 180000,
+				success: function(res) {
+					hideTyping();
+					if (res.code == 0) {
+						var report = res.data || res.msg;
+						analysisHistory['1.6'] = report;
+						markStepDone('1.6');
+						appendMessage('ai', '<b>步骤1.6完成 — 需求完整性报告</b>\n\n' + report
+							+ '\n\n<button class="btn btn-sm btn-success" onclick="downloadWordReport()" style="margin-top:10px;"><i class="fa fa-download"></i> 下载Word报告</button>');
+					} else {
+						appendMessage('ai', '报告生成失败：' + res.msg);
+					}
+				},
+				error: function(xhr, status, error) {
+					hideTyping();
+					appendMessage('ai', '报告生成请求失败：' + (status === 'timeout' ? '请求超时' : error));
+				},
+				complete: function() {
+					isProcessing = false;
+					$('#btnSend').prop('disabled', false);
+					$('#modelInfo').text('DeepSeek V3 | 就绪');
+				}
+			});
+		}
+
+		/* 下载Word报告 */
+		function downloadWordReport() {
+			var report = analysisHistory['1.6'];
+			if (!report) {
+				layer.msg('请先生成完整性报告', {icon: 5});
+				return;
+			}
+			// 创建隐藏表单提交POST请求下载文件
+			var form = document.createElement('form');
+			form.method = 'POST';
+			form.action = prefix + '/report/download';
+			form.style.display = 'none';
+			var input = document.createElement('input');
+			input.type = 'hidden';
+			input.name = 'reportContent';
+			input.value = report;
+			form.appendChild(input);
+			document.body.appendChild(form);
+			form.submit();
+			document.body.removeChild(form);
+		}
+
+		/* 标记步骤完成 */
+		function markStepDone(step) {
+			$('.step-item[data-step="' + step + '"]').addClass('done');
+		}
+
+		/* 滚动到底部 */
+		function scrollToBottom() {
+			var area = document.getElementById('chatArea');
+			area.scrollTop = area.scrollHeight;
+		}
+
+		/* 简单Markdown格式化 */
+		function formatMarkdown(text) {
+			if (!text) return '';
+			// 转义HTML
+			text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+			// 代码块
+			text = text.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+			// 行内代码
+			text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+			// 粗体
+			text = text.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+			// 斜体
+			text = text.replace(/\*(.+?)\*/g, '<i>$1</i>');
+			// 标题
+			text = text.replace(/^### (.+)$/gm, '<h5 style="margin:8px 0 4px;font-size:14px;">$1</h5>');
+			text = text.replace(/^## (.+)$/gm, '<h4 style="margin:10px 0 6px;font-size:15px;">$1</h4>');
+			text = text.replace(/^# (.+)$/gm, '<h3 style="margin:12px 0 8px;">$1</h3>');
+			// 表格
+			text = formatTables(text);
+			// 列表
+			text = text.replace(/^- (.+)$/gm, '• $1');
+			return text;
+		}
+
+		/* 简单表格格式化 */
+		function formatTables(text) {
+			var lines = text.split('\n');
+			var result = [];
+			var inTable = false;
+			var tableHtml = '';
+
+			for (var i = 0; i < lines.length; i++) {
+				var line = lines[i].trim();
+				if (line.match(/^\|.*\|$/)) {
+					if (!inTable) {
+						inTable = true;
+						tableHtml = '<table>';
+					}
+					if (line.match(/^\|[\s\-:|]+\|$/)) continue;
+					var cells = line.split('|').filter(function(c) { return c.trim() !== ''; });
+					var tag = (tableHtml === '<table>') ? 'th' : 'td';
+					tableHtml += '<tr>';
+					for (var j = 0; j < cells.length; j++) {
+						tableHtml += '<' + tag + '>' + cells[j].trim() + '</' + tag + '>';
+					}
+					tableHtml += '</tr>';
+				} else {
+					if (inTable) {
+						tableHtml += '</table>';
+						result.push(tableHtml);
+						inTable = false;
+						tableHtml = '';
+					}
+					result.push(line);
+				}
+			}
+			if (inTable) {
+				tableHtml += '</table>';
+				result.push(tableHtml);
+			}
+			return result.join('\n');
+		}
+
+		/* 文件上传处理 */
+		function handleFileUpload(input) {
+			var file = input.files[0];
+			if (!file) return;
+
+			var maxSize = 20 * 1024 * 1024;
+			if (file.size > maxSize) {
+				layer.msg('文件大小不能超过20MB', {icon: 5});
+				input.value = '';
+				return;
+			}
+
+			var ext = file.name.split('.').pop().toLowerCase();
+			var allowed = ['pdf','doc','docx','xls','xlsx','txt','md','png','jpg','jpeg','gif','bmp','webp'];
+			if (allowed.indexOf(ext) === -1) {
+				layer.msg('不支持的文件格式：' + ext, {icon: 5});
+				input.value = '';
+				return;
+			}
+
+			$('#fileInfo').html('<i class="fa fa-spinner fa-spin"></i> 正在解析 ' + file.name + ' ...');
+			$('#btnSend').prop('disabled', true);
+			appendMessage('user', '<i class="fa fa-file"></i> 上传文件：' + file.name + ' (' + formatFileSize(file.size) + ')');
+
+			var formData = new FormData();
+			formData.append('file', file);
+
+			$.ajax({
+				url: prefix + '/upload',
+				type: 'POST',
+				data: formData,
+				processData: false,
+				contentType: false,
+				timeout: 120000,
+				success: function(res) {
+					if (res.code == 0) {
+						var text = res.data;
+						analysisHistory['1.1'] = text;
+						markStepDone('1.1');
+						var preview = text.length > 500 ? text.substring(0, 500) + '\n...(共' + text.length + '字符)' : text;
+						appendMessage('ai', '<b>文件解析成功！</b> 提取文本 ' + text.length + ' 字符\n\n<b>文档预览：</b>\n' + preview + '\n\n<b>接下来请选择：</b>\n1. 点击 <b>"提取关键信息"</b> 开始分步分析\n2. 点击 <b>"一键执行全流程"</b> 自动完成所有步骤');
+						$('#fileInfo').html('<i class="fa fa-check-circle" style="color:#1ab394"></i> ' + file.name + ' <span class="remove-file" onclick="clearFile()"><i class="fa fa-times"></i></span>');
+					} else {
+						appendMessage('ai', '<b>文件解析失败：</b>' + res.msg);
+						$('#fileInfo').html('(支持 PDF/Word/Excel/图片/TXT，最大20MB)');
+					}
+				},
+				error: function(xhr, status, error) {
+					appendMessage('ai', '<b>文件上传失败：</b>' + (status === 'timeout' ? '请求超时' : error));
+					$('#fileInfo').html('(支持 PDF/Word/Excel/图片/TXT，最大20MB)');
+				},
+				complete: function() {
+					$('#btnSend').prop('disabled', false);
+					input.value = '';
+				}
+			});
+		}
+
+		/* 清除已上传文件 */
+		function clearFile() {
+			delete analysisHistory['1.1'];
+			$('#fileInfo').html('(支持 PDF/Word/Excel/图片/TXT，最大20MB)');
+			$('#fileUpload').val('');
+			layer.msg('已清除上传的文件', {icon: 1});
+		}
+
+		/* 格式化文件大小 */
+		function formatFileSize(bytes) {
+			if (bytes < 1024) return bytes + 'B';
+			if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + 'KB';
+			return (bytes / (1024 * 1024)).toFixed(1) + 'MB';
+		}
+	</script>
+</body>
+</html>
