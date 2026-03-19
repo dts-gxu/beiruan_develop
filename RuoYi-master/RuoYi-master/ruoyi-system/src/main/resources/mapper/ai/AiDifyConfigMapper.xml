@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.AiDifyConfigMapper">
+
+    <resultMap type="com.ruoyi.system.domain.AiDifyConfig" id="AiDifyConfigResult">
+        <result property="configId"       column="config_id" />
+        <result property="configName"     column="config_name" />
+        <result property="baseUrl"        column="base_url" />
+        <result property="apiKey"         column="api_key" />
+        <result property="configType"     column="config_type" />
+        <result property="isDefault"      column="is_default" />
+        <result property="status"         column="status" />
+        <result property="lastTestTime"   column="last_test_time" />
+        <result property="lastTestResult" column="last_test_result" />
+        <result property="delFlag"        column="del_flag" />
+        <result property="createBy"       column="create_by" />
+        <result property="createTime"     column="create_time" />
+        <result property="updateBy"       column="update_by" />
+        <result property="updateTime"     column="update_time" />
+        <result property="remark"         column="remark" />
+    </resultMap>
+
+    <sql id="selectAiDifyConfigVo">
+        select config_id, config_name, base_url, api_key, config_type, is_default,
+               status, last_test_time, last_test_result, del_flag,
+               create_by, create_time, update_by, update_time, remark
+        from ai_dify_config
+    </sql>
+
+    <select id="selectAiDifyConfigList" parameterType="com.ruoyi.system.domain.AiDifyConfig" resultMap="AiDifyConfigResult">
+        <include refid="selectAiDifyConfigVo"/>
+        <where>
+            del_flag = '0'
+            <if test="configName != null and configName != ''">
+                AND config_name like concat('%', #{configName}, '%')
+            </if>
+            <if test="configType != null and configType != ''">
+                AND config_type = #{configType}
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+        </where>
+        order by is_default desc, create_time desc
+    </select>
+
+    <select id="selectAiDifyConfigByConfigId" parameterType="Long" resultMap="AiDifyConfigResult">
+        <include refid="selectAiDifyConfigVo"/>
+        where config_id = #{configId} and del_flag = '0'
+    </select>
+
+    <select id="selectDefaultConfig" resultMap="AiDifyConfigResult">
+        <include refid="selectAiDifyConfigVo"/>
+        where is_default = 'Y' and status = '0' and del_flag = '0'
+        limit 1
+    </select>
+
+    <insert id="insertAiDifyConfig" parameterType="com.ruoyi.system.domain.AiDifyConfig" useGeneratedKeys="true" keyProperty="configId">
+        insert into ai_dify_config
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="configName != null and configName != ''">config_name,</if>
+            <if test="baseUrl != null and baseUrl != ''">base_url,</if>
+            <if test="apiKey != null and apiKey != ''">api_key,</if>
+            <if test="configType != null and configType != ''">config_type,</if>
+            <if test="isDefault != null and isDefault != ''">is_default,</if>
+            <if test="status != null and status != ''">status,</if>
+            <if test="createBy != null and createBy != ''">create_by,</if>
+            create_time,
+            <if test="remark != null and remark != ''">remark,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="configName != null and configName != ''">#{configName},</if>
+            <if test="baseUrl != null and baseUrl != ''">#{baseUrl},</if>
+            <if test="apiKey != null and apiKey != ''">#{apiKey},</if>
+            <if test="configType != null and configType != ''">#{configType},</if>
+            <if test="isDefault != null and isDefault != ''">#{isDefault},</if>
+            <if test="status != null and status != ''">#{status},</if>
+            <if test="createBy != null and createBy != ''">#{createBy},</if>
+            sysdate(),
+            <if test="remark != null and remark != ''">#{remark},</if>
+        </trim>
+    </insert>
+
+    <update id="updateAiDifyConfig" parameterType="com.ruoyi.system.domain.AiDifyConfig">
+        update ai_dify_config
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="configName != null and configName != ''">config_name = #{configName},</if>
+            <if test="baseUrl != null and baseUrl != ''">base_url = #{baseUrl},</if>
+            <if test="apiKey != null and apiKey != ''">api_key = #{apiKey},</if>
+            <if test="configType != null and configType != ''">config_type = #{configType},</if>
+            <if test="isDefault != null and isDefault != ''">is_default = #{isDefault},</if>
+            <if test="status != null and status != ''">status = #{status},</if>
+            <if test="lastTestTime != null">last_test_time = #{lastTestTime},</if>
+            <if test="lastTestResult != null and lastTestResult != ''">last_test_result = #{lastTestResult},</if>
+            <if test="updateBy != null and updateBy != ''">update_by = #{updateBy},</if>
+            update_time = sysdate(),
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where config_id = #{configId}
+    </update>
+
+    <update id="deleteAiDifyConfigByConfigId" parameterType="Long">
+        update ai_dify_config set del_flag = '2' where config_id = #{configId}
+    </update>
+
+    <update id="deleteAiDifyConfigByConfigIds" parameterType="String">
+        update ai_dify_config set del_flag = '2' where config_id in
+        <foreach item="configId" collection="array" open="(" separator="," close=")">
+            #{configId}
+        </foreach>
+    </update>
+
+    <update id="resetAllDefault">
+        update ai_dify_config set is_default = 'N' where del_flag = '0'
+    </update>
+
+</mapper>

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <th:block th:include="include :: header('新增Dify应用')" />
+</head>
+<body class="white-bg">
+    <div class="wrapper wrapper-content animated fadeInRight ibox-content">
+        <form class="form-horizontal m" id="form-app-add">
+            <div class="form-group">
+                <label class="col-sm-3 control-label is-required">关联配置：</label>
+                <div class="col-sm-8">
+                    <select name="configId" class="form-control" required>
+                        <option value="">请选择Dify配置</option>
+                        <option th:each="config : ${configs}" th:text="${config.configName}" th:value="${config.configId}"></option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="col-sm-3 control-label is-required">应用名称：</label>
+                <div class="col-sm-8">
+                    <input name="appName" class="form-control" type="text" required placeholder="如：需求分析助手">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="col-sm-3 control-label">应用类型：</label>
+                <div class="col-sm-8">
+                    <select name="appType" class="form-control" th:with="type=${@dict.getType('ai_app_type')}">
+                        <option th:each="dict : ${type}" th:text="${dict.dictLabel}" th:value="${dict.dictValue}"></option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="col-sm-3 control-label is-required">应用API密钥：</label>
+                <div class="col-sm-8">
+                    <div class="input-group">
+                        <input name="appApiKey" id="appApiKey" class="form-control" type="password" required placeholder="Dify应用的API Key（app-xxx）">
+                        <span class="input-group-btn">
+                            <button type="button" class="btn btn-default" onclick="toggleKey()"><i class="fa fa-eye"></i></button>
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="col-sm-3 control-label">工作流ID：</label>
+                <div class="col-sm-8">
+                    <input name="workflowId" class="form-control" type="text" placeholder="Workflow类型专用">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="col-sm-3 control-label">模型名称：</label>
+                <div class="col-sm-8">
+                    <input name="modelName" class="form-control" type="text" placeholder="如：deepseek-chat">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="col-sm-3 control-label">应用描述：</label>
+                <div class="col-sm-8">
+                    <textarea name="description" class="form-control" rows="3" placeholder="描述该应用的用途"></textarea>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="col-sm-3 control-label">排序号：</label>
+                <div class="col-sm-8">
+                    <input name="sortOrder" class="form-control" type="number" value="0">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="col-sm-3 control-label">状态：</label>
+                <div class="col-sm-8">
+                    <div class="radio-box">
+                        <input type="radio" name="status" value="0" checked> 正常
+                        <input type="radio" name="status" value="1"> 停用
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="col-sm-3 control-label">备注：</label>
+                <div class="col-sm-8">
+                    <textarea name="remark" class="form-control" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="form-group">
+                <div class="col-sm-offset-3 col-sm-8">
+                    <button type="button" class="btn btn-info" onclick="testNewApiKey()">
+                        <i class="fa fa-key"></i> 验证密钥
+                    </button>
+                    <span id="testResult" style="margin-left:10px;"></span>
+                </div>
+            </div>
+        </form>
+    </div>
+    <th:block th:include="include :: footer" />
+    <script th:inline="javascript">
+        var prefix = ctx + "ai/dify/app";
+
+        $("#form-app-add").validate({
+            focusCleanup: true
+        });
+
+        function submitHandler() {
+            if ($.validate.form()) {
+                $.operate.save(prefix + "/add", $('#form-app-add').serialize());
+            }
+        }
+
+        function toggleKey() {
+            var input = document.getElementById('appApiKey');
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+
+        function testNewApiKey() {
+            var configId = $("select[name='configId']").val();
+            var appApiKey = $("input[name='appApiKey']").val();
+            if (!configId || !appApiKey) {
+                layer.msg('请先选择配置并输入API密钥', {icon: 7});
+                return;
+            }
+            var loadIndex = layer.load(1);
+            $.ajax({
+                url: prefix + '/testNewApiKey',
+                type: 'POST',
+                data: { configId: configId, appApiKey: appApiKey },
+                success: function(res) {
+                    layer.close(loadIndex);
+                    if (res.code == 0) {
+                        $('#testResult').html('<span class="text-success"><i class="fa fa-check-circle"></i> ' + res.msg + '</span>');
+                    } else {
+                        $('#testResult').html('<span class="text-danger"><i class="fa fa-times-circle"></i> ' + res.msg + '</span>');
+                    }
+                },
+                error: function() {
+                    layer.close(loadIndex);
+                    $('#testResult').html('<span class="text-danger"><i class="fa fa-times-circle"></i> 请求失败</span>');
+                }
+            });
+        }
+    </script>
+</body>
+</html>
