@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:shiro="http://www.pollix.at/thymeleaf/shiro">
+<head>
+	<th:block th:include="include :: header('Dify应用管理')" />
+</head>
+<body class="gray-bg">
+	<div class="container-div">
+		<div class="row">
+			<div class="col-sm-12 search-collapse">
+				<form id="formId">
+					<div class="select-list">
+						<ul>
+							<li>
+								<label>应用名称：</label>
+								<input type="text" name="appName"/>
+							</li>
+							<li>
+								<label>应用类型：</label>
+								<select name="appType" th:with="type=${@dict.getType('ai_dify_app_type')}">
+									<option value="">所有</option>
+									<option th:each="dict : ${type}" th:text="${dict.dictLabel}" th:value="${dict.dictValue}"></option>
+								</select>
+							</li>
+							<li>
+								<label>状态：</label>
+								<select name="status">
+									<option value="">所有</option>
+									<option value="0">正常</option>
+									<option value="1">停用</option>
+								</select>
+							</li>
+							<li>
+								<a class="btn btn-primary btn-rounded btn-sm" onclick="$.table.search()"><i class="fa fa-search"></i>&nbsp;搜索</a>
+								<a class="btn btn-warning btn-rounded btn-sm" onclick="$.form.reset()"><i class="fa fa-refresh"></i>&nbsp;重置</a>
+							</li>
+						</ul>
+					</div>
+				</form>
+			</div>
+
+			<div class="btn-group-sm" id="toolbar" role="group">
+				<a class="btn btn-success" onclick="$.operate.add()" shiro:hasPermission="ai:dify:app:add">
+					<i class="fa fa-plus"></i> 添加
+				</a>
+				<a class="btn btn-primary single disabled" onclick="$.operate.edit()" shiro:hasPermission="ai:dify:app:edit">
+					<i class="fa fa-edit"></i> 修改
+				</a>
+				<a class="btn btn-danger multiple disabled" onclick="$.operate.removeAll()" shiro:hasPermission="ai:dify:app:remove">
+					<i class="fa fa-remove"></i> 删除
+				</a>
+			</div>
+			<div class="col-sm-12 select-table table-striped">
+				<table id="bootstrap-table"></table>
+			</div>
+		</div>
+	</div>
+	<th:block th:include="include :: footer" />
+	<script th:inline="javascript">
+		var editFlag = [[${@permission.hasPermi('ai:dify:app:edit')}]];
+		var removeFlag = [[${@permission.hasPermi('ai:dify:app:remove')}]];
+		var testFlag = [[${@permission.hasPermi('ai:dify:app:test')}]];
+		var appTypes = [[${@dict.getType('ai_dify_app_type')}]];
+		var prefix = ctx + "ai/dify/app";
+
+		$(function() {
+			var options = {
+				url: prefix + "/list",
+				createUrl: prefix + "/add",
+				updateUrl: prefix + "/edit/{id}",
+				removeUrl: prefix + "/remove",
+				modalName: "Dify应用",
+				columns: [{
+					checkbox: true
+				},
+				{
+					field: 'appId',
+					title: '应用ID',
+					visible: false
+				},
+				{
+					field: 'appName',
+					title: '应用名称'
+				},
+				{
+					field: 'configName',
+					title: '关联配置'
+				},
+				{
+					field: 'appType',
+					title: '应用类型',
+					formatter: function(value, row, index) {
+						return $.table.selectDictLabel(appTypes, value);
+					}
+				},
+				{
+					field: 'appApiKeyMasked',
+					title: 'API密钥'
+				},
+				{
+					field: 'modelName',
+					title: '模型名称'
+				},
+				{
+					field: 'status',
+					title: '状态',
+					formatter: function(value, row, index) {
+						return value === '0' ? '<span class="badge badge-success">正常</span>' : '<span class="badge badge-danger">停用</span>';
+					}
+				},
+				{
+					title: '操作',
+					align: 'center',
+					formatter: function(value, row, index) {
+						var actions = [];
+						if (testFlag) {
+							actions.push('<a class="btn btn-info btn-xs" href="javascript:void(0)" onclick="testApiKey(\'' + row.appId + '\')"><i class="fa fa-key"></i>验证</a> ');
+						}
+						if (editFlag) {
+							actions.push('<a class="btn btn-success btn-xs" href="javascript:void(0)" onclick="$.operate.edit(\'' + row.appId + '\')"><i class="fa fa-edit"></i>编辑</a> ');
+						}
+						if (removeFlag) {
+							actions.push('<a class="btn btn-danger btn-xs" href="javascript:void(0)" onclick="$.operate.remove(\'' + row.appId + '\')"><i class="fa fa-remove"></i>删除</a>');
+						}
+						return actions.join('');
+					}
+				}]
+			};
+			$.table.init(options);
+		});
+
+		function testApiKey(appId) {
+			$.modal.loading("正在验证密钥...");
+			$.ajax({
+				url: prefix + "/testApiKey",
+				type: "post",
+				data: { appId: appId },
+				success: function(result) {
+					$.modal.closeLoading();
+					if (result.code == 0) {
+						$.modal.msgSuccess("密钥验证成功");
+					} else {
+						$.modal.msgError(result.msg);
+					}
+				}
+			});
+		}
+	</script>
+</body>
+</html>

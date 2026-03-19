@@ -63,6 +63,20 @@
 		.upload-area .btn-upload:hover { background: #e8f8f0; border-style: solid; }
 		.upload-area .file-info { font-size: 12px; color: #666; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 		.upload-area .file-info .remove-file { color: #e74c3c; cursor: pointer; margin-left: 6px; }
+		/* Dify应用选择和会话管理面板 */
+		#difyPanel { display: none; padding: 8px 0; }
+		.dify-app-bar { display: flex; align-items: center; gap: 10px; padding: 0 0 8px; flex-wrap: wrap; }
+		.dify-app-bar select { max-width: 200px; height: 32px; font-size: 12px; border: 1px solid #e5e6e7; border-radius: 4px; padding: 0 8px; }
+		.dify-app-bar .btn-sm { font-size: 12px; padding: 4px 10px; }
+		.conv-history-panel { max-height: 200px; overflow-y: auto; border: 1px solid #e7eaec; border-radius: 4px; background: #fff; margin-top: 6px; display: none; }
+		.conv-history-panel .conv-item { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+		.conv-history-panel .conv-item:hover { background: #f5f5f5; }
+		.conv-history-panel .conv-item.active { background: #e8f5e9; border-left: 3px solid #1ab394; }
+		.conv-history-panel .conv-item .conv-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+		.conv-history-panel .conv-item .conv-actions { display: flex; gap: 4px; margin-left: 8px; }
+		.conv-history-panel .conv-item .conv-actions a { color: #999; font-size: 11px; }
+		.conv-history-panel .conv-item .conv-actions a:hover { color: #333; }
+		.conv-history-panel .conv-empty { padding: 20px; text-align: center; color: #999; font-size: 12px; }
 	</style>
 </head>
 <body class="gray-bg">
@@ -118,7 +132,20 @@
 
 			<!-- 快捷操作 + 输入区域 -->
 			<div class="chat-input-area">
-				<div class="quick-actions" id="quickActions">
+				<div id="difyPanel">
+					<div class="dify-app-bar">
+						<span style="font-size:12px;color:#666;"><i class="fa fa-cube"></i> 应用：</span>
+						<select id="difyAppSelect" onchange="onDifyAppChange()">
+							<option value="">加载中...</option>
+						</select>
+						<button class="btn btn-sm btn-primary" onclick="createNewConversation()"><i class="fa fa-plus"></i> 新对话</button>
+						<button class="btn btn-sm btn-default" onclick="toggleConvHistory()"><i class="fa fa-history"></i> 历史</button>
+					</div>
+					<div class="conv-history-panel" id="convHistoryPanel">
+						<div class="conv-empty">暂无会话记录</div>
+					</div>
+				</div>
+			<div class="quick-actions" id="quickActions">
 					<button class="btn-quick" onclick="quickAction('analyze')"><i class="fa fa-search"></i> 提取关键信息</button>
 					<button class="btn-quick" onclick="quickAction('adapt')"><i class="fa fa-cogs"></i> RuoYi适配分析</button>
 					<button class="btn-quick" onclick="quickAction('evaluate')"><i class="fa fa-check-circle"></i> 完整性评估</button>
@@ -145,6 +172,10 @@
 		var currentStep = "1.1";
 		var analysisHistory = {};
 		var isProcessing = false;
+		var difyApps = [];
+		var currentAppId = null;
+		var currentConversationId = null;
+		var isDifyMode = false;
 
 		/* 初始化 */
 		$(function() {
@@ -164,9 +195,22 @@
 				'1.5': '步骤1.5 — 完整性评估',
 				'1.6': '步骤1.6 — 生成完整性报告',
 				'1.7': '步骤1.7 — 生成结构化JSON',
-				'chat': '自由对话'
+				'chat': '自由对话（Dify）'
 			};
 			$('#currentStepTitle').html('<i class="fa fa-magic"></i> ' + (titles[currentStep] || ''));
+
+			if (currentStep === 'chat') {
+				isDifyMode = true;
+				$('#difyPanel').show();
+				$('#quickActions').hide();
+				$('.upload-area').hide();
+				loadDifyApps();
+			} else {
+				isDifyMode = false;
+				$('#difyPanel').hide();
+				$('#quickActions').show();
+				$('.upload-area').show();
+			}
 		}
 
 		/* 发送消息 */
@@ -175,6 +219,11 @@
 			if (!msg || isProcessing) return;
 			appendMessage('user', msg);
 			$('#userInput').val('');
+
+			if (isDifyMode && currentConversationId) {
+				callDifyChat(msg);
+				return;
+			}
 			
 			// 任何时候发送的文本都保存为需求文档（如果还没有的话）
 			if (!analysisHistory['1.1'] && msg.length > 50) {
@@ -608,6 +657,256 @@
 			if (bytes < 1024) return bytes + 'B';
 			if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + 'KB';
 			return (bytes / (1024 * 1024)).toFixed(1) + 'MB';
+		}
+
+		// ==================== Dify对话管理 ====================
+
+		/* 加载Dify应用列表 */
+		function loadDifyApps() {
+			if (difyApps.length > 0) return;
+			$.ajax({
+				url: prefix + '/dify/apps',
+				type: 'POST',
+				success: function(res) {
+					if (res.code == 0 && res.data) {
+						difyApps = res.data;
+						var sel = $('#difyAppSelect');
+						sel.empty();
+						if (difyApps.length === 0) {
+							sel.append('<option value="">暂无可用应用</option>');
+						} else {
+							sel.append('<option value="">请选择应用</option>');
+							for (var i = 0; i < difyApps.length; i++) {
+								sel.append('<option value="' + difyApps[i].appId + '">' + difyApps[i].appName + '</option>');
+							}
+						}
+					} else {
+						$('#difyAppSelect').html('<option value="">加载失败</option>');
+					}
+				},
+				error: function() {
+					$('#difyAppSelect').html('<option value="">加载失败</option>');
+				}
+			});
+		}
+
+		/* Dify应用切换 */
+		function onDifyAppChange() {
+			var appId = $('#difyAppSelect').val();
+			if (!appId) {
+				currentAppId = null;
+				currentConversationId = null;
+				$('#convHistoryPanel').hide();
+				return;
+			}
+			currentAppId = parseInt(appId);
+			currentConversationId = null;
+			loadConversationHistory();
+		}
+
+		/* 加载会话历史 */
+		function loadConversationHistory() {
+			if (!currentAppId) return;
+			$.ajax({
+				url: prefix + '/conversation/list',
+				type: 'POST',
+				data: { appId: currentAppId },
+				success: function(res) {
+					if (res.code == 0) {
+						renderConversationList(res.data || []);
+					}
+				}
+			});
+		}
+
+		/* 渲染会话列表 */
+		function renderConversationList(list) {
+			var panel = $('#convHistoryPanel');
+			panel.empty();
+			if (!list || list.length === 0) {
+				panel.html('<div class="conv-empty">暂无会话记录，点击"新对话"开始</div>');
+				return;
+			}
+			for (var i = 0; i < list.length; i++) {
+				var conv = list[i];
+				var activeClass = (currentConversationId == conv.conversationId) ? ' active' : '';
+				var time = conv.lastMessageTime || conv.createTime || '';
+				if (time && time.length > 16) time = time.substring(5, 16);
+				var html = '<div class="conv-item' + activeClass + '" data-id="' + conv.conversationId + '" onclick="switchConversation(' + conv.conversationId + ')">'
+					+ '<span class="conv-title" title="' + (conv.title || '新对话') + '">' + (conv.title || '新对话') + '</span>'
+					+ '<span style="color:#aaa;font-size:11px;margin:0 6px;">' + (conv.messageCount || 0) + '条</span>'
+					+ '<span class="conv-actions">'
+					+ '<a href="javascript:void(0)" onclick="event.stopPropagation();renameConversation(' + conv.conversationId + ')" title="重命名"><i class="fa fa-pencil"></i></a>'
+					+ '<a href="javascript:void(0)" onclick="event.stopPropagation();deleteConversation(' + conv.conversationId + ')" title="删除" style="color:#e74c3c"><i class="fa fa-trash"></i></a>'
+					+ '</span></div>';
+				panel.append(html);
+			}
+		}
+
+		/* 切换会话 */
+		function switchConversation(conversationId) {
+			currentConversationId = conversationId;
+			$('.conv-item').removeClass('active');
+			$('.conv-item[data-id="' + conversationId + '"]').addClass('active');
+			loadConversationMessages(conversationId);
+		}
+
+		/* 加载会话消息 */
+		function loadConversationMessages(conversationId) {
+			$('#chatArea').empty();
+			showTyping();
+			$.ajax({
+				url: prefix + '/conversation/messages',
+				type: 'POST',
+				data: { conversationId: conversationId },
+				success: function(res) {
+					hideTyping();
+					$('#chatArea').empty();
+					if (res.code == 0 && res.data && res.data.length > 0) {
+						var messages = res.data;
+						for (var i = 0; i < messages.length; i++) {
+							var role = messages[i].role === '0' ? 'user' : 'ai';
+							appendMessage(role, messages[i].content);
+						}
+					} else {
+						appendMessage('ai', '会话已就绪，请输入消息开始对话。');
+					}
+				},
+				error: function() {
+					hideTyping();
+					appendMessage('ai', '加载消息失败，请重试。');
+				}
+			});
+		}
+
+		/* 创建新会话 */
+		function createNewConversation() {
+			if (!currentAppId) {
+				layer.msg('请先选择一个Dify应用', {icon: 5});
+				return;
+			}
+			$.ajax({
+				url: prefix + '/conversation/create',
+				type: 'POST',
+				data: { appId: currentAppId, title: '新对话' },
+				success: function(res) {
+					if (res.code == 0 && res.data) {
+						currentConversationId = res.data.conversationId;
+						$('#chatArea').empty();
+						appendMessage('ai', '新对话已创建！请输入您的问题。');
+						loadConversationHistory();
+						$('#convHistoryPanel').show();
+					} else {
+						layer.msg(res.msg || '创建失败', {icon: 5});
+					}
+				}
+			});
+		}
+
+		/* 删除会话 */
+		function deleteConversation(conversationId) {
+			layer.confirm('确认删除该会话？所有消息将被清除。', {icon: 3, title: '提示'}, function(index) {
+				$.ajax({
+					url: prefix + '/conversation/delete',
+					type: 'POST',
+					data: { conversationId: conversationId },
+					success: function(res) {
+						if (res.code == 0) {
+							layer.msg('删除成功', {icon: 1});
+							if (currentConversationId == conversationId) {
+								currentConversationId = null;
+								$('#chatArea').empty();
+								appendMessage('ai', '会话已删除。请创建新对话或选择其他会话。');
+							}
+							loadConversationHistory();
+						} else {
+							layer.msg(res.msg || '删除失败', {icon: 5});
+						}
+					}
+				});
+				layer.close(index);
+			});
+		}
+
+		/* 重命名会话 */
+		function renameConversation(conversationId) {
+			layer.prompt({title: '修改会话标题', formType: 0}, function(value, index) {
+				if (!value || !value.trim()) return;
+				$.ajax({
+					url: prefix + '/conversation/rename',
+					type: 'POST',
+					data: { conversationId: conversationId, title: value.trim() },
+					success: function(res) {
+						if (res.code == 0) {
+							layer.msg('修改成功', {icon: 1});
+							loadConversationHistory();
+						} else {
+							layer.msg(res.msg || '修改失败', {icon: 5});
+						}
+					}
+				});
+				layer.close(index);
+			});
+		}
+
+		/* 切换会话历史面板显隐 */
+		function toggleConvHistory() {
+			var panel = $('#convHistoryPanel');
+			if (panel.is(':visible')) {
+				panel.slideUp(200);
+			} else {
+				if (currentAppId) loadConversationHistory();
+				panel.slideDown(200);
+			}
+		}
+
+		/* 调用Dify Chat（带消息持久化） */
+		function callDifyChat(message) {
+			if (!currentConversationId) {
+				appendMessage('ai', '请先创建一个新对话或选择已有会话。');
+				return;
+			}
+			isProcessing = true;
+			$('#btnSend').prop('disabled', true);
+			$('#modelInfo').text('Dify | 思考中...');
+			showTyping();
+
+			$.ajax({
+				url: prefix + '/dify/chat',
+				type: 'POST',
+				data: { conversationId: currentConversationId, content: message },
+				timeout: 180000,
+				success: function(res) {
+					hideTyping();
+					if (res.code == 0 && res.data) {
+						var data = res.data;
+						var answer = data.answer || '';
+						var info = '';
+						if (data.model) info += data.model;
+						if (data.tokens) info += ' | ' + data.tokens + ' tokens';
+						if (data.costTime) info += ' | ' + (data.costTime / 1000).toFixed(1) + 's';
+						appendMessage('ai', answer);
+						$('#modelInfo').text('Dify' + (info ? ' | ' + info : '') + ' | 就绪');
+						loadConversationHistory();
+					} else {
+						appendMessage('ai', '对话失败：' + (res.msg || '未知错误'));
+						$('#modelInfo').text('Dify | 就绪');
+					}
+				},
+				error: function(xhr, status, error) {
+					hideTyping();
+					if (status === 'timeout') {
+						appendMessage('ai', '请求超时，请稍后重试。');
+					} else {
+						appendMessage('ai', '网络错误：' + error);
+					}
+					$('#modelInfo').text('Dify | 就绪');
+				},
+				complete: function() {
+					isProcessing = false;
+					$('#btnSend').prop('disabled', false);
+				}
+			});
 		}
 	</script>
 </body>

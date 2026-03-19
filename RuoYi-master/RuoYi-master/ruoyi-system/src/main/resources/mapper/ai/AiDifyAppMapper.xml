@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.AiDifyAppMapper">
+    
+    <resultMap type="AiDifyApp" id="AiDifyAppResult">
+        <id     property="appId"       column="app_id"       />
+        <result property="configId"    column="config_id"    />
+        <result property="appName"     column="app_name"     />
+        <result property="appType"     column="app_type"     />
+        <result property="appApiKey"   column="app_api_key"  />
+        <result property="workflowId"  column="workflow_id"  />
+        <result property="modelName"   column="model_name"   />
+        <result property="description" column="description"  />
+        <result property="sortOrder"   column="sort_order"   />
+        <result property="status"      column="status"       />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"  column="create_time"  />
+        <result property="updateBy"    column="update_by"    />
+        <result property="updateTime"  column="update_time"  />
+        <result property="remark"      column="remark"       />
+        <result property="configName"  column="config_name"  />
+    </resultMap>
+
+    <sql id="selectAiDifyAppVo">
+        select a.app_id, a.config_id, a.app_name, a.app_type, a.app_api_key, a.workflow_id, 
+               a.model_name, a.description, a.sort_order, a.status, a.create_by, a.create_time, 
+               a.update_by, a.update_time, a.remark, c.config_name
+        from ai_dify_app a
+        left join ai_dify_config c on a.config_id = c.config_id
+    </sql>
+
+    <select id="selectAiDifyAppByAppId" parameterType="Long" resultMap="AiDifyAppResult">
+        <include refid="selectAiDifyAppVo"/>
+        where a.app_id = #{appId}
+    </select>
+
+    <select id="selectAiDifyAppList" parameterType="AiDifyApp" resultMap="AiDifyAppResult">
+        <include refid="selectAiDifyAppVo"/>
+        <where>
+            <if test="appName != null and appName != ''">
+                AND a.app_name like concat('%', #{appName}, '%')
+            </if>
+            <if test="appType != null and appType != ''">
+                AND a.app_type = #{appType}
+            </if>
+            <if test="configId != null">
+                AND a.config_id = #{configId}
+            </if>
+            <if test="status != null and status != ''">
+                AND a.status = #{status}
+            </if>
+        </where>
+        order by a.sort_order, a.create_time desc
+    </select>
+
+    <select id="selectActiveAppList" resultMap="AiDifyAppResult">
+        <include refid="selectAiDifyAppVo"/>
+        where a.status = '0'
+        order by a.sort_order, a.app_id
+    </select>
+
+    <insert id="insertAiDifyApp" parameterType="AiDifyApp" useGeneratedKeys="true" keyProperty="appId">
+        insert into ai_dify_app
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="configId != null">config_id,</if>
+            <if test="appName != null and appName != ''">app_name,</if>
+            <if test="appType != null">app_type,</if>
+            <if test="appApiKey != null and appApiKey != ''">app_api_key,</if>
+            <if test="workflowId != null">workflow_id,</if>
+            <if test="modelName != null">model_name,</if>
+            <if test="description != null">description,</if>
+            <if test="sortOrder != null">sort_order,</if>
+            <if test="status != null">status,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="remark != null">remark,</if>
+            create_time
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="configId != null">#{configId},</if>
+            <if test="appName != null and appName != ''">#{appName},</if>
+            <if test="appType != null">#{appType},</if>
+            <if test="appApiKey != null and appApiKey != ''">#{appApiKey},</if>
+            <if test="workflowId != null">#{workflowId},</if>
+            <if test="modelName != null">#{modelName},</if>
+            <if test="description != null">#{description},</if>
+            <if test="sortOrder != null">#{sortOrder},</if>
+            <if test="status != null">#{status},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="remark != null">#{remark},</if>
+            sysdate()
+        </trim>
+    </insert>
+
+    <update id="updateAiDifyApp" parameterType="AiDifyApp">
+        update ai_dify_app
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="configId != null">config_id = #{configId},</if>
+            <if test="appName != null and appName != ''">app_name = #{appName},</if>
+            <if test="appType != null">app_type = #{appType},</if>
+            <if test="appApiKey != null and appApiKey != ''">app_api_key = #{appApiKey},</if>
+            <if test="workflowId != null">workflow_id = #{workflowId},</if>
+            <if test="modelName != null">model_name = #{modelName},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="sortOrder != null">sort_order = #{sortOrder},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            update_time = sysdate()
+        </trim>
+        where app_id = #{appId}
+    </update>
+
+    <delete id="deleteAiDifyAppByAppId" parameterType="Long">
+        delete from ai_dify_app where app_id = #{appId}
+    </delete>
+
+    <delete id="deleteAiDifyAppByAppIds" parameterType="String">
+        delete from ai_dify_app where app_id in 
+        <foreach item="appId" collection="array" open="(" separator="," close=")">
+            #{appId}
+        </foreach>
+    </delete>
+
+</mapper>

@@ -1069,29 +1069,385 @@ CREATE TABLE 【table_name】 (
 
 ---
 
-## 十、后续演进路线
+## 十、Dify平台深度集成设计（核心）
 
-### 10.1 短期（1-2个月）
+### 10.1 集成架构总览
 
-- [ ] 建立RuoYi框架规范Prompt库
-- [ ] 完成首个业务模块的AI生成试点
-- [ ] 验证生成代码质量和集成效果
-- [ ] 完善代码模板和质量检查清单
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        用户浏览器（RuoYi前端）                        │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐  │
+│  │ Dify配置管理  │  │ Dify应用管理  │  │  AI对话（选择App+历史）   │  │
+│  │ config.html  │  │  app.html    │  │      chat.html           │  │
+│  └──────┬───────┘  └──────┬───────┘  └────────────┬─────────────┘  │
+└─────────┼─────────────────┼───────────────────────┼────────────────┘
+          │ Ajax             │ Ajax                   │ Ajax
+          ▼                  ▼                        ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                     RuoYi后端（Spring Boot）                         │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌───────────────────┐  │
+│  │AiDifyConfigCtrl │  │AiDifyAppCtrl    │  │AiAssistantCtrl    │  │
+│  │(API密钥CRUD)    │  │(应用CRUD+同步)  │  │(对话+代码生成)    │  │
+│  └────────┬────────┘  └────────┬────────┘  └────────┬──────────┘  │
+│           │                    │                     │             │
+│  ┌────────▼────────────────────▼─────────────────────▼──────────┐  │
+│  │              Service层（业务逻辑 + Dify API调用）              │  │
+│  │  ┌──────────────┐ ┌──────────────┐ ┌─────────────────────┐  │  │
+│  │  │DifyApiClient │ │AiDifyAppSvc  │ │AiChatSessionSvc     │  │  │
+│  │  │(HTTP封装)    │ │(应用管理)    │ │(会话+消息持久化)    │  │  │
+│  │  └──────┬───────┘ └──────────────┘ └─────────────────────┘  │  │
+│  └─────────┼───────────────────────────────────────────────────┘  │
+│            │                                                       │
+│  ┌─────────▼───────────────────────────────────────────────────┐  │
+│  │              Mapper层 + MySQL数据库                           │  │
+│  │  ai_dify_config | ai_dify_app | ai_chat_conversation        │  │
+│  │                               | ai_chat_message              │  │
+│  └─────────────────────────────────────────────────────────────┘  │
+└────────────────────────────┬────────────────────────────────────────┘
+                             │ HTTP REST API
+                             ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                      Dify平台（Docker部署）                          │
+│  ┌──────────┐  ┌───────────┐  ┌────────────┐  ┌────────────────┐  │
+│  │Chat API  │  │Workflow   │  │Knowledge   │  │Completion API  │  │
+│  │/chat-msg │  │/workflows │  │/datasets   │  │/completion-msg │  │
+│  └──────────┘  └───────────┘  └────────────┘  └────────────────┘  │
+│  访问地址: http://localhost:8180/v1                                  │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
-### 10.2 中期（3-6个月）
+### 10.2 数据库设计
 
+#### 10.2.1 ai_dify_config（Dify API连接配置表）
+
+存储Dify平台的连接信息，支持多环境（开发/测试/生产）。
+
+```sql
+CREATE TABLE ai_dify_config (
+    config_id       BIGINT(20)    NOT NULL AUTO_INCREMENT  COMMENT '配置ID',
+    config_name     VARCHAR(100)  NOT NULL                 COMMENT '配置名称（如：开发环境Dify）',
+    base_url        VARCHAR(500)  NOT NULL                 COMMENT 'Dify API地址（如：http://localhost:8180/v1）',
+    api_key         VARCHAR(500)  NOT NULL                 COMMENT 'Dify API密钥（加密存储）',
+    config_type     CHAR(1)       DEFAULT '0'              COMMENT '配置类型（0=Chat应用 1=Workflow应用 2=Completion应用）',
+    is_default      CHAR(1)       DEFAULT 'N'              COMMENT '是否默认配置（Y=是 N=否）',
+    status          CHAR(1)       DEFAULT '0'              COMMENT '状态（0=正常 1=停用）',
+    last_test_time  DATETIME                               COMMENT '最后连接测试时间',
+    last_test_result CHAR(1)                               COMMENT '最后测试结果（0=成功 1=失败）',
+    del_flag        CHAR(1)       DEFAULT '0'              COMMENT '删除标志（0=存在 2=删除）',
+    create_by       VARCHAR(64)   DEFAULT ''               COMMENT '创建者',
+    create_time     DATETIME                               COMMENT '创建时间',
+    update_by       VARCHAR(64)   DEFAULT ''               COMMENT '更新者',
+    update_time     DATETIME                               COMMENT '更新时间',
+    remark          VARCHAR(500)  DEFAULT NULL              COMMENT '备注',
+    PRIMARY KEY (config_id)
+) ENGINE=InnoDB AUTO_INCREMENT=1 COMMENT='Dify API连接配置表';
+```
+
+#### 10.2.2 ai_dify_app（Dify应用管理表）
+
+管理在Dify平台上创建的应用（Chat/Workflow/Completion），每个应用有独立的API Key。
+
+```sql
+CREATE TABLE ai_dify_app (
+    app_id          BIGINT(20)    NOT NULL AUTO_INCREMENT  COMMENT '应用ID',
+    config_id       BIGINT(20)    NOT NULL                 COMMENT '关联的Dify配置ID',
+    app_name        VARCHAR(200)  NOT NULL                 COMMENT '应用名称',
+    app_type        CHAR(1)       DEFAULT '0'              COMMENT '应用类型（0=Chat 1=Workflow 2=Completion 3=Agent）',
+    app_api_key     VARCHAR(500)  NOT NULL                 COMMENT '应用级API密钥（app-xxx）',
+    dify_app_id     VARCHAR(100)  DEFAULT ''               COMMENT 'Dify平台上的应用ID',
+    workflow_id     VARCHAR(100)  DEFAULT ''               COMMENT '工作流ID（Workflow类型专用）',
+    model_name      VARCHAR(100)  DEFAULT ''               COMMENT '使用的模型名称',
+    description     VARCHAR(1000) DEFAULT ''               COMMENT '应用描述',
+    icon            VARCHAR(200)  DEFAULT ''               COMMENT '应用图标URL',
+    sort_order      INT(4)        DEFAULT 0                COMMENT '排序号',
+    status          CHAR(1)       DEFAULT '0'              COMMENT '状态（0=正常 1=停用）',
+    del_flag        CHAR(1)       DEFAULT '0'              COMMENT '删除标志（0=存在 2=删除）',
+    create_by       VARCHAR(64)   DEFAULT ''               COMMENT '创建者',
+    create_time     DATETIME                               COMMENT '创建时间',
+    update_by       VARCHAR(64)   DEFAULT ''               COMMENT '更新者',
+    update_time     DATETIME                               COMMENT '更新时间',
+    remark          VARCHAR(500)  DEFAULT NULL              COMMENT '备注',
+    PRIMARY KEY (app_id),
+    KEY idx_config_id (config_id)
+) ENGINE=InnoDB AUTO_INCREMENT=1 COMMENT='Dify应用管理表';
+```
+
+#### 10.2.3 ai_chat_conversation（AI对话会话表）
+
+持久化用户的AI对话会话，支持会话历史回顾。
+
+```sql
+CREATE TABLE ai_chat_conversation (
+    conversation_id     BIGINT(20)    NOT NULL AUTO_INCREMENT  COMMENT '会话ID',
+    app_id              BIGINT(20)    NOT NULL                 COMMENT '关联的Dify应用ID',
+    user_id             BIGINT(20)    NOT NULL                 COMMENT '用户ID',
+    dify_conversation_id VARCHAR(100) DEFAULT ''               COMMENT 'Dify平台返回的会话ID',
+    title               VARCHAR(500)  DEFAULT '新对话'         COMMENT '会话标题（自动/手动）',
+    conversation_type   CHAR(1)       DEFAULT '0'              COMMENT '会话类型（0=普通对话 1=需求分析 2=代码生成 3=代码评审）',
+    status              CHAR(1)       DEFAULT '0'              COMMENT '状态（0=进行中 1=已完成 2=已归档）',
+    message_count       INT(8)        DEFAULT 0                COMMENT '消息数量',
+    last_message_time   DATETIME                               COMMENT '最后消息时间',
+    del_flag            CHAR(1)       DEFAULT '0'              COMMENT '删除标志（0=存在 2=删除）',
+    create_by           VARCHAR(64)   DEFAULT ''               COMMENT '创建者',
+    create_time         DATETIME                               COMMENT '创建时间',
+    update_by           VARCHAR(64)   DEFAULT ''               COMMENT '更新者',
+    update_time         DATETIME                               COMMENT '更新时间',
+    remark              VARCHAR(500)  DEFAULT NULL              COMMENT '备注',
+    PRIMARY KEY (conversation_id),
+    KEY idx_app_id (app_id),
+    KEY idx_user_id (user_id)
+) ENGINE=InnoDB AUTO_INCREMENT=1 COMMENT='AI对话会话表';
+```
+
+#### 10.2.4 ai_chat_message（AI对话消息表）
+
+持久化每一条对话消息，用于历史回顾和上下文管理。
+
+```sql
+CREATE TABLE ai_chat_message (
+    message_id      BIGINT(20)    NOT NULL AUTO_INCREMENT  COMMENT '消息ID',
+    conversation_id BIGINT(20)    NOT NULL                 COMMENT '关联的会话ID',
+    role            CHAR(1)       DEFAULT '0'              COMMENT '角色（0=用户 1=AI助手 2=系统）',
+    content         LONGTEXT                               COMMENT '消息内容',
+    content_type    CHAR(1)       DEFAULT '0'              COMMENT '内容类型（0=文本 1=代码 2=图片 3=文件）',
+    tokens_used     INT(8)        DEFAULT 0                COMMENT 'Token消耗数',
+    dify_message_id VARCHAR(100)  DEFAULT ''               COMMENT 'Dify平台返回的消息ID',
+    model_name      VARCHAR(100)  DEFAULT ''               COMMENT '使用的模型名称',
+    cost_time       INT(8)        DEFAULT 0                COMMENT '响应耗时（毫秒）',
+    status          CHAR(1)       DEFAULT '0'              COMMENT '状态（0=正常 1=失败 2=已撤回）',
+    create_time     DATETIME                               COMMENT '创建时间',
+    PRIMARY KEY (message_id),
+    KEY idx_conversation_id (conversation_id)
+) ENGINE=InnoDB AUTO_INCREMENT=1 COMMENT='AI对话消息表';
+```
+
+### 10.3 Dify API对接规范
+
+#### 10.3.1 Dify REST API端点清单
+
+| API | 方法 | 端点 | 说明 | RuoYi对接 |
+|-----|------|------|------|-----------|
+| Chat | POST | `/v1/chat-messages` | 发送对话消息 | AiChatSessionService |
+| Workflow | POST | `/v1/workflows/run` | 运行工作流 | DifyApiClient |
+| Completion | POST | `/v1/completion-messages` | 单次文本生成 | DifyApiClient |
+| 停止响应 | POST | `/v1/chat-messages/:task_id/stop` | 停止流式响应 | AiChatSessionService |
+| 获取会话列表 | GET | `/v1/conversations` | 查询会话列表 | AiChatSessionService |
+| 删除会话 | DELETE | `/v1/conversations/:id` | 删除会话 | AiChatSessionService |
+| 获取消息列表 | GET | `/v1/messages` | 查询历史消息 | AiChatSessionService |
+| 消息反馈 | POST | `/v1/messages/:id/feedbacks` | 点赞/踩 | AiChatSessionService |
+| 应用信息 | GET | `/v1/info` | 获取应用元信息 | IAiDifyAppService |
+| 应用参数 | GET | `/v1/parameters` | 获取应用配置参数 | IAiDifyAppService |
+| 文件上传 | POST | `/v1/files/upload` | 上传文件给Dify | DifyApiClient |
+
+#### 10.3.2 DifyApiClient（HTTP封装类）设计
+
+```java
+/**
+ * Dify API统一HTTP客户端
+ * 
+ * 职责：
+ * 1. 从数据库读取API配置（非hardcode在yml中）
+ * 2. 封装所有Dify REST API调用
+ * 3. 统一异常处理和日志
+ * 4. 支持阻塞/流式两种模式
+ */
+@Service
+public class DifyApiClient {
+    // 从 IAiDifyConfigService 动态读取配置
+    // 根据 appId 获取对应的 apiKey 和 baseUrl
+    // POST /v1/chat-messages  → chatMessage(appId, query, user, conversationId)
+    // POST /v1/workflows/run  → runWorkflow(appId, inputs, user)
+    // GET  /v1/conversations  → listConversations(appId, user)
+    // GET  /v1/messages       → listMessages(appId, conversationId, user)
+    // POST /v1/files/upload   → uploadFile(appId, file)
+    // GET  /v1/info           → getAppInfo(appId)
+    // POST /v1/chat-messages/:task_id/stop → stopGeneration(appId, taskId)
+}
+```
+
+#### 10.3.3 API密钥安全策略
+
+- API Key在数据库中**加密存储**（AES对称加密，密钥在application.yml中配置）
+- 前端展示时**脱敏显示**（只显示前4位+后4位，中间用****替代）
+- 连接测试时通过后端发起请求，API Key**不传到前端**
+- 使用RuoYi内置的`@RequiresPermissions`控制谁可以管理API配置
+
+### 10.4 前端页面设计
+
+#### 10.4.1 Dify配置管理页面（ai/dify/config.html）
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ [搜索] 配置名称: [____] 状态: [全部▾]  [🔍搜索] [↻重置]     │
+├──────────────────────────────────────────────────────────────┤
+│ [+ 添加] [✎ 修改] [✖ 删除]                                  │
+├────┬──────────┬──────────────────┬──────┬────────┬──────────┤
+│ □  │ 配置名称  │ API地址           │ 类型 │ 状态   │ 操作     │
+├────┼──────────┼──────────────────┼──────┼────────┼──────────┤
+│ □  │ 开发环境  │ http://local:8180│ Chat │ ✓正常  │ 测试|编辑│
+│ □  │ 生产环境  │ https://dify.xxx │ WF   │ ✗停用  │ 测试|编辑│
+└────┴──────────┴──────────────────┴──────┴────────┴──────────┘
+
+[添加配置弹窗]
+┌──────────────────────────────────┐
+│  配置名称: [________________]    │
+│  API地址:  [________________]    │
+│  API密钥:  [________________] 👁 │
+│  配置类型: ○Chat ○Workflow ○Comp │
+│  默认配置: □                     │
+│  [🔌 测试连接]  [✓保存] [✗取消]  │
+└──────────────────────────────────┘
+```
+
+#### 10.4.2 Dify应用管理页面（ai/dify/app.html）
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ [搜索] 应用名称: [____] 类型: [全部▾]  [🔍搜索] [↻重置]     │
+├──────────────────────────────────────────────────────────────┤
+│ [+ 添加] [🔄 从Dify同步] [✎ 修改] [✖ 删除]                  │
+├────┬──────────┬──────┬──────────────┬────────┬──────────────┤
+│ □  │ 应用名称  │ 类型 │ API密钥(脱敏) │ 状态   │ 操作         │
+├────┼──────────┼──────┼──────────────┼────────┼──────────────┤
+│ □  │ 需求分析  │ Chat │ app-****b3f2 │ ✓正常  │ 对话|编辑    │
+│ □  │ 代码生成  │ WF   │ app-****a1c5 │ ✓正常  │ 运行|编辑    │
+│ □  │ 代码评审  │ Chat │ app-****d8e1 │ ✓正常  │ 对话|编辑    │
+└────┴──────────┴──────┴──────────────┴────────┴──────────────┘
+
+[添加应用弹窗]
+┌──────────────────────────────────┐
+│  关联配置: [开发环境Dify ▾]       │
+│  应用名称: [________________]    │
+│  应用类型: ○Chat ○Workflow ○Comp │
+│  应用API密钥: [________________] │
+│  工作流ID:    [________________] │
+│  应用描述: [________________]    │
+│  [🔌 验证密钥]  [✓保存] [✗取消]  │
+└──────────────────────────────────┘
+```
+
+#### 10.4.3 增强版AI对话页面（chat.html改造）
+
+```
+┌─────────┬───────────────────────────────────────────────────┐
+│ 步骤导航 │  头部: [选择应用: 需求分析▾] [新建对话] [历史会话] │
+│         ├───────────────────────────────────────────────────┤
+│ 1.上传  │                                                   │
+│ 2.提取  │  [历史会话侧栏]    │    聊天区域                   │
+│ 3.适配  │  ┌────────────┐   │  ┌─────────────────────┐     │
+│ 4.评估  │  │ 今天        │   │  │ 🤖 欢迎...           │     │
+│ 5.报告  │  │  需求分析#1 │   │  │ 👤 请分析这个需求... │     │
+│ 6.JSON  │  │  代码评审#2 │   │  │ 🤖 分析结果如下...    │     │
+│ ─────── │  │ 昨天        │   │  └─────────────────────┘     │
+│ 7.代码  │  │  需求分析#3 │   │                               │
+│ 8.测试  │  └────────────┘   │  [输入区域]                   │
+│ 9.评审  │                    │  [上传] [___________] [发送]  │
+│ ─────── │                    │  [快捷按钮...]                │
+│ 自由聊天│                    │                               │
+└─────────┴───────────────────┴───────────────────────────────┘
+```
+
+### 10.5 后端分层架构
+
+```
+ruoyi-system/
+├── domain/ai/
+│   ├── AiDifyConfig.java       -- Dify配置实体
+│   ├── AiDifyApp.java          -- Dify应用实体
+│   ├── AiChatConversation.java -- 对话会话实体
+│   └── AiChatMessage.java      -- 对话消息实体
+├── mapper/ai/
+│   ├── AiDifyConfigMapper.java + xml
+│   ├── AiDifyAppMapper.java    + xml
+│   ├── AiChatConversationMapper.java + xml
+│   └── AiChatMessageMapper.java + xml
+└── service/ai/
+    ├── IAiDifyConfigService.java + impl
+    ├── IAiDifyAppService.java    + impl
+    └── IAiChatSessionService.java + impl（核心：对话管理+Dify调用+消息持久化）
+
+ruoyi-admin/
+├── controller/ai/
+│   ├── AiDifyConfigController.java -- 配置CRUD + 连接测试
+│   ├── AiDifyAppController.java    -- 应用CRUD + 同步
+│   ├── AiAssistantController.java  -- 对话(改造：使用数据库配置)
+│   └── DifyApiClient.java         -- Dify HTTP客户端(改造)
+└── resources/templates/ai/
+    ├── dify/
+    │   ├── config/config.html + add.html + edit.html
+    │   └── app/app.html + add.html + edit.html
+    └── assistant/chat.html (改造)
+```
+
+### 10.6 核心交互流程
+
+#### 10.6.1 用户首次使用流程
+
+```
+1. 管理员进入「AI开发平台 → Dify配置管理」
+2. 点击[添加]，输入 Base URL + API Key
+3. 点击[测试连接]，后端调用 GET /v1/info 验证连通性
+4. 保存配置（API Key加密入库）
+
+5. 进入「AI开发平台 → Dify应用管理」
+6. 点击[添加]，选择刚才的配置，输入应用API Key
+7. 点击[验证密钥]，后端调用 GET /v1/parameters 验证
+8. 保存应用
+
+9. 进入「AI开发平台 → AI开发助手」
+10. 顶部下拉选择Dify应用
+11. 开始对话（消息通过后端转发到Dify，响应持久化到数据库）
+```
+
+#### 10.6.2 对话消息流转
+
+```
+用户输入消息
+     │
+     ▼
+chat.html → Ajax POST /ai/assistant/chat
+     │
+     ▼
+AiAssistantController.chat()
+     │
+     ├─ 1. 根据appId从数据库获取Dify应用配置
+     ├─ 2. 保存用户消息到 ai_chat_message
+     ├─ 3. 调用DifyApiClient.chatMessage(appApiKey, baseUrl, query, conversationId)
+     ├─ 4. 保存AI回复到 ai_chat_message
+     ├─ 5. 更新会话的 message_count 和 last_message_time
+     └─ 6. 返回AI回复给前端
+```
+
+---
+
+## 十一、后续演进路线
+
+### 11.1 短期（1-2个月）
+
+- [x] 建立RuoYi框架规范Prompt库
+- [x] AI需求分析全流程（6步）
+- [x] AI代码生成/测试/评审服务
+- [ ] **Dify配置管理（数据库+CRUD页面）**
+- [ ] **Dify应用管理（数据库+CRUD页面）**
+- [ ] **对话会话持久化（数据库+历史回顾）**
+- [ ] **DifyApiClient重构（从数据库读取配置）**
+
+### 11.2 中期（3-6个月）
+
+- [ ] Dify RAG知识库对接（RuoYi规范文档自动同步）
+- [ ] 流式响应（SSE）支持
+- [ ] 多模型切换（通过Dify应用管理不同模型）
 - [ ] 评估迁移到RuoYi-Vue（前后端分离版）的可行性
-- [ ] 建立AI生成代码的自动化测试流水线
-- [ ] 扩展AI生成能力至复杂业务逻辑（工作流、报表等）
 - [ ] 集成SonarQube实现自动代码质量门禁
 
-### 10.3 长期（6-12个月）
+### 11.3 长期（6-12个月）
 
 - [ ] 实现需求→设计→代码的全自动化流水线
 - [ ] 建立业务模块模板市场（可复用的AI生成模板）
-- [ ] 探索AI辅助代码Review和Bug修复
+- [ ] Dify Plugin开发（RuoYi代码生成专用插件）
 - [ ] 建立知识库，持续优化AI生成质量
 
 ---
 
-*本设计文档基于RuoYi v4.8.2源码深度分析，所有代码规范均来自框架实际代码模式。*
+*本设计文档基于RuoYi v4.8.2源码深度分析，Dify 1.13.0 API文档，所有代码规范均来自框架实际代码模式。*
+*v2.0更新：新增Dify平台深度集成设计（第十章），包含数据库设计、API对接规范、前端页面设计、后端分层架构。*

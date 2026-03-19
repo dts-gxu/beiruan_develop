@@ -1,5 +1,8 @@
 package com.ruoyi.web.controller.ai;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.apache.shiro.authz.annotation.RequiresPermissions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +17,13 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.utils.ShiroUtils;
+import com.ruoyi.system.domain.AiChatConversation;
+import com.ruoyi.system.domain.AiChatMessage;
+import com.ruoyi.system.domain.AiDifyApp;
+import com.ruoyi.system.service.IAiChatSessionService;
+import com.ruoyi.system.service.IAiDifyAppService;
+import com.ruoyi.system.service.impl.AiChatSessionServiceImpl;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
@@ -43,6 +53,15 @@ public class AiAssistantController extends BaseController
 
     @Autowired
     private DifyWorkflowService difyWorkflowService;
+
+    @Autowired
+    private IAiDifyAppService aiDifyAppService;
+
+    @Autowired
+    private IAiChatSessionService aiChatSessionService;
+
+    @Autowired
+    private DifyApiClient difyApiClient;
 
     /**
      * 需求分析页面
@@ -358,6 +377,188 @@ public class AiAssistantController extends BaseController
         {
             log.error("文件上传解析失败", e);
             return AjaxResult.error("文件解析失败：" + e.getMessage());
+        }
+    }
+
+    // ==================== Dify对话管理接口 ====================
+
+    /**
+     * 获取可用的Dify应用列表
+     */
+    @PostMapping("/dify/apps")
+    @ResponseBody
+    public AjaxResult getDifyApps()
+    {
+        List<AiDifyApp> list = aiDifyAppService.selectActiveAppList();
+        return AjaxResult.success(list);
+    }
+
+    /**
+     * 创建新会话
+     */
+    @PostMapping("/conversation/create")
+    @ResponseBody
+    public AjaxResult createConversation(@RequestParam("appId") Long appId,
+                                          @RequestParam(value = "title", required = false) String title,
+                                          @RequestParam(value = "conversationType", required = false) String conversationType)
+    {
+        try
+        {
+            Long userId = ShiroUtils.getUserId();
+            AiChatConversation conversation = aiChatSessionService.createConversation(appId, userId, title, conversationType);
+            return AjaxResult.success("创建成功", conversation);
+        }
+        catch (Exception e)
+        {
+            log.error("创建会话失败", e);
+            return AjaxResult.error("创建会话失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 查询用户的会话列表
+     */
+    @PostMapping("/conversation/list")
+    @ResponseBody
+    public AjaxResult listConversations(@RequestParam(value = "appId", required = false) Long appId)
+    {
+        try
+        {
+            AiChatConversation query = new AiChatConversation();
+            query.setUserId(ShiroUtils.getUserId());
+            if (appId != null)
+            {
+                query.setAppId(appId);
+            }
+            List<AiChatConversation> list = aiChatSessionService.selectConversationList(query);
+            return AjaxResult.success(list);
+        }
+        catch (Exception e)
+        {
+            log.error("获取会话列表失败", e);
+            return AjaxResult.error("获取会话列表失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 获取会话的消息历史
+     */
+    @PostMapping("/conversation/messages")
+    @ResponseBody
+    public AjaxResult getConversationMessages(@RequestParam("conversationId") Long conversationId)
+    {
+        try
+        {
+            List<AiChatMessage> messages = aiChatSessionService.selectMessagesByConversationId(conversationId);
+            return AjaxResult.success(messages);
+        }
+        catch (Exception e)
+        {
+            log.error("获取消息列表失败", e);
+            return AjaxResult.error("获取消息列表失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 删除会话（含消息）
+     */
+    @PostMapping("/conversation/delete")
+    @ResponseBody
+    public AjaxResult deleteConversation(@RequestParam("conversationId") Long conversationId)
+    {
+        try
+        {
+            aiChatSessionService.deleteConversation(conversationId);
+            return AjaxResult.success("删除成功");
+        }
+        catch (Exception e)
+        {
+            log.error("删除会话失败", e);
+            return AjaxResult.error("删除失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 修改会话标题
+     */
+    @PostMapping("/conversation/rename")
+    @ResponseBody
+    public AjaxResult renameConversation(@RequestParam("conversationId") Long conversationId,
+                                          @RequestParam("title") String title)
+    {
+        try
+        {
+            aiChatSessionService.updateConversationTitle(conversationId, title);
+            return AjaxResult.success("修改成功");
+        }
+        catch (Exception e)
+        {
+            log.error("修改会话标题失败", e);
+            return AjaxResult.error("修改失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * Dify对话（带消息持久化）
+     */
+    @PostMapping("/dify/chat")
+    @ResponseBody
+    public AjaxResult difyChatWithPersistence(@RequestParam("conversationId") Long conversationId,
+                                               @RequestParam("content") String content)
+    {
+        try
+        {
+            long startTime = System.currentTimeMillis();
+
+            AiChatConversation conversation = aiChatSessionService.selectConversationById(conversationId);
+            if (conversation == null)
+            {
+                return AjaxResult.error("会话不存在");
+            }
+
+            // 保存用户消息
+            AiChatMessage userMsg = aiChatSessionService.sendMessage(conversationId, content);
+
+            // 调用Dify API
+            String user = ShiroUtils.getLoginName();
+            Map<String, String> difyResult = difyApiClient.chatMessage(
+                conversation.getAppId(), content, user, conversation.getDifyConversationId());
+
+            long costTime = System.currentTimeMillis() - startTime;
+
+            // 首次对话时保存Dify返回的conversationId
+            String difyConvId = difyResult.get("conversationId");
+            if (difyConvId != null && !difyConvId.isEmpty()
+                && (conversation.getDifyConversationId() == null || conversation.getDifyConversationId().isEmpty()))
+            {
+                ((AiChatSessionServiceImpl) aiChatSessionService).updateDifyConversationId(conversationId, difyConvId);
+            }
+
+            // 解析Dify响应
+            String answer = difyResult.getOrDefault("answer", "");
+            String messageId = difyResult.getOrDefault("messageId", "");
+            String model = difyResult.getOrDefault("model", "");
+            int tokens = 0;
+            try { tokens = Integer.parseInt(difyResult.getOrDefault("totalTokens", "0")); } catch (Exception ignored) {}
+
+            // 保存AI回复消息
+            AiChatMessage aiMsg = ((AiChatSessionServiceImpl) aiChatSessionService)
+                .saveAiReply(conversationId, answer, messageId, model, tokens, (int) costTime);
+
+            // 返回结果
+            Map<String, Object> result = new HashMap<>();
+            result.put("answer", answer);
+            result.put("messageId", aiMsg.getMessageId());
+            result.put("difyMessageId", messageId);
+            result.put("model", model);
+            result.put("tokens", tokens);
+            result.put("costTime", costTime);
+            return AjaxResult.success("操作成功", result);
+        }
+        catch (Exception e)
+        {
+            log.error("Dify对话失败", e);
+            return AjaxResult.error("对话失败：" + e.getMessage());
         }
     }
 }

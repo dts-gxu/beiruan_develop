@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org">
+<head>
+	<th:block th:include="include :: header('新增Dify配置')" />
+</head>
+<body class="white-bg">
+	<div class="wrapper wrapper-content animated fadeInRight ibox-content">
+		<form class="form-horizontal m" id="form-config-add">
+			<div class="form-group">
+				<label class="col-sm-3 control-label is-required">配置名称：</label>
+				<div class="col-sm-8">
+					<input name="configName" class="form-control" type="text" required placeholder="例如：Dify本地环境">
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label is-required">API地址：</label>
+				<div class="col-sm-8">
+					<input name="baseUrl" class="form-control" type="text" required placeholder="例如：http://localhost:8180/v1">
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label is-required">API密钥：</label>
+				<div class="col-sm-8">
+					<div class="input-group">
+						<input name="apiKey" id="apiKey" class="form-control" type="password" required placeholder="app-xxxxxxxx">
+						<span class="input-group-btn">
+							<button type="button" class="btn btn-default" onclick="toggleApiKey()"><i class="fa fa-eye" id="toggleIcon"></i></button>
+						</span>
+					</div>
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">配置类型：</label>
+				<div class="col-sm-8">
+					<select name="configType" class="form-control" th:with="type=${@dict.getType('ai_dify_config_type')}">
+						<option th:each="dict : ${type}" th:text="${dict.dictLabel}" th:value="${dict.dictValue}"></option>
+					</select>
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">是否默认：</label>
+				<div class="col-sm-8">
+					<label class="toggle-switch">
+						<input type="checkbox" name="isDefault" value="Y">
+						<span class="toggle-slider"></span>
+					</label>
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">状态：</label>
+				<div class="col-sm-8">
+					<div class="radio-box">
+						<input type="radio" name="status" value="0" checked> 正常
+						<input type="radio" name="status" value="1"> 停用
+					</div>
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">备注：</label>
+				<div class="col-sm-8">
+					<textarea name="remark" class="form-control" rows="3"></textarea>
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label"></label>
+				<div class="col-sm-8">
+					<button type="button" class="btn btn-info" onclick="testConnection()"><i class="fa fa-plug"></i> 测试连接</button>
+					<span id="testResult" style="margin-left:10px;"></span>
+				</div>
+			</div>
+		</form>
+	</div>
+	<th:block th:include="include :: footer" />
+	<script th:inline="javascript">
+		var prefix = ctx + "ai/dify/config";
+		$("#form-config-add").validate({
+			focusCleanup: true
+		});
+
+		function submitHandler() {
+			if ($.validate.form()) {
+				$.operate.save(prefix + "/add", $('#form-config-add').serialize());
+			}
+		}
+
+		function toggleApiKey() {
+			var input = $('#apiKey');
+			var icon = $('#toggleIcon');
+			if (input.attr('type') === 'password') {
+				input.attr('type', 'text');
+				icon.removeClass('fa-eye').addClass('fa-eye-slash');
+			} else {
+				input.attr('type', 'password');
+				icon.removeClass('fa-eye-slash').addClass('fa-eye');
+			}
+		}
+
+		function testConnection() {
+			var baseUrl = $("input[name='baseUrl']").val();
+			var apiKey = $("input[name='apiKey']").val();
+			if (!baseUrl || !apiKey) {
+				$.modal.msgWarning("请先填写API地址和API密钥");
+				return;
+			}
+			$('#testResult').html('<i class="fa fa-spinner fa-spin"></i> 测试中...');
+			$.ajax({
+				url: prefix + "/testNewConnection",
+				type: "post",
+				data: { baseUrl: baseUrl, apiKey: apiKey },
+				success: function(result) {
+					if (result.code == 0) {
+						$('#testResult').html('<span style="color:green"><i class="fa fa-check-circle"></i> ' + result.msg + '</span>');
+					} else {
+						$('#testResult').html('<span style="color:red"><i class="fa fa-times-circle"></i> ' + result.msg + '</span>');
+					}
+				}
+			});
+		}
+	</script>
+</body>
+</html>
