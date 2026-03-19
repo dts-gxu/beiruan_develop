@@ -63,22 +63,6 @@
 		.upload-area .btn-upload:hover { background: #e8f8f0; border-style: solid; }
 		.upload-area .file-info { font-size: 12px; color: #666; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 		.upload-area .file-info .remove-file { color: #e74c3c; cursor: pointer; margin-left: 6px; }
-		/* Dify应用选择器 */
-		.dify-app-bar { background: #fff; padding: 8px 20px; border-bottom: 1px solid #e7eaec; display: flex; align-items: center; gap: 12px; font-size: 13px; }
-		.dify-app-bar select { border: 1px solid #e5e6e7; border-radius: 4px; padding: 4px 8px; font-size: 12px; max-width: 200px; }
-		.dify-app-bar .btn-new-conv { padding: 4px 12px; font-size: 12px; background: #1ab394; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
-		.dify-app-bar .btn-new-conv:hover { background: #18a689; }
-		/* 会话历史列表 */
-		.conv-history { max-height: 200px; overflow-y: auto; background: #f8f9fa; border-bottom: 1px solid #e7eaec; }
-		.conv-history .conv-item { padding: 8px 20px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 12px; display: flex; justify-content: space-between; align-items: center; }
-		.conv-history .conv-item:hover { background: #e8f8f0; }
-		.conv-history .conv-item.active { background: #d4edda; border-left: 3px solid #1ab394; }
-		.conv-history .conv-item .conv-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-		.conv-history .conv-item .conv-meta { font-size: 11px; color: #999; margin-left: 8px; white-space: nowrap; }
-		.conv-history .conv-item .conv-actions { margin-left: 6px; }
-		.conv-history .conv-item .conv-actions a { color: #999; margin-left: 4px; font-size: 11px; }
-		.conv-history .conv-item .conv-actions a:hover { color: #e74c3c; }
-		.conv-history-empty { padding: 15px 20px; text-align: center; color: #999; font-size: 12px; }
 	</style>
 </head>
 <body class="gray-bg">
@@ -105,18 +89,6 @@
 				<span class="step-num">6</span>生成结构化JSON
 			</div>
 			<div class="step-title" style="margin-top:15px; border-top:1px solid #3e5771; padding-top:15px;">
-				<i class="fa fa-code"></i> 代码生成流程
-			</div>
-			<div class="step-item" data-step="4.0" onclick="switchStep(this)">
-				<span class="step-num">7</span>AI代码生成
-			</div>
-			<div class="step-item" data-step="5.0" onclick="switchStep(this)">
-				<span class="step-num">8</span>测试用例生成
-			</div>
-			<div class="step-item" data-step="6.0" onclick="switchStep(this)">
-				<span class="step-num">9</span>代码评审检查
-			</div>
-			<div class="step-title" style="margin-top:15px; border-top:1px solid #3e5771; padding-top:15px;">
 				<i class="fa fa-comments"></i> 自由对话
 			</div>
 			<div class="step-item" data-step="chat" onclick="switchStep(this)">
@@ -129,22 +101,6 @@
 			<div class="ai-header">
 				<h4 id="currentStepTitle"><i class="fa fa-magic"></i> 步骤1.1 — 上传需求文档</h4>
 				<span class="model-info" id="modelInfo">模型加载中...</span>
-			</div>
-
-			<!-- Dify应用选择 + 会话管理（仅在自由对话模式显示） -->
-			<div id="difyPanel" style="display:none;">
-				<div class="dify-app-bar">
-					<label><i class="fa fa-rocket"></i> Dify应用：</label>
-					<select id="difyAppSelect" onchange="onDifyAppChange()">
-						<option value="">加载中...</option>
-					</select>
-					<button class="btn-new-conv" onclick="createNewConversation()"><i class="fa fa-plus"></i> 新对话</button>
-					<button class="btn-new-conv" style="background:#3498db;" onclick="toggleConvHistory()"><i class="fa fa-history"></i> 历史</button>
-					<span id="difyModeInfo" style="margin-left:auto; font-size:11px; color:#999;"></span>
-				</div>
-				<div class="conv-history" id="convHistory" style="display:none;">
-					<div class="conv-history-empty" id="convEmpty">暂无历史会话</div>
-				</div>
 			</div>
 
 			<!-- 聊天消息区域 -->
@@ -168,10 +124,7 @@
 					<button class="btn-quick" onclick="quickAction('evaluate')"><i class="fa fa-check-circle"></i> 完整性评估</button>
 					<button class="btn-quick" onclick="quickAction('report')"><i class="fa fa-file-text"></i> 生成报告</button>
 					<button class="btn-quick" onclick="quickAction('json')"><i class="fa fa-code"></i> 生成JSON</button>
-					<button class="btn-quick" onclick="quickAction('genCode')"><i class="fa fa-file-code-o"></i> 生成代码</button>
-					<button class="btn-quick" onclick="quickAction('genTest')"><i class="fa fa-flask"></i> 生成测试</button>
-					<button class="btn-quick" onclick="quickAction('review')"><i class="fa fa-eye"></i> 代码评审</button>
-					<button class="btn-quick" onclick="quickAction('all')"><i class="fa fa-forward"></i> 一键全流程</button>
+					<button class="btn-quick" onclick="quickAction('all')"><i class="fa fa-forward"></i> 一键执行全流程</button>
 				</div>
 				<div class="upload-area">
 					<label class="btn-upload" for="fileUpload"><i class="fa fa-paperclip"></i> 上传需求文件</label>
@@ -192,11 +145,6 @@
 		var currentStep = "1.1";
 		var analysisHistory = {};
 		var isProcessing = false;
-		// Dify会话管理状态
-		var difyApps = [];
-		var currentAppId = null;
-		var currentConversationId = null;
-		var isDifyMode = false;
 
 		/* 初始化 */
 		$(function() {
@@ -216,26 +164,9 @@
 				'1.5': '步骤1.5 — 完整性评估',
 				'1.6': '步骤1.6 — 生成完整性报告',
 				'1.7': '步骤1.7 — 生成结构化JSON',
-				'4.0': '第四步 — AI代码生成',
-				'5.0': '第五步 — 测试用例生成',
-				'6.0': '第六步 — 代码评审检查',
-				'chat': '自由对话（Dify）'
+				'chat': '自由对话'
 			};
 			$('#currentStepTitle').html('<i class="fa fa-magic"></i> ' + (titles[currentStep] || ''));
-
-			// 显示/隐藏Dify面板
-			if (currentStep === 'chat') {
-				isDifyMode = true;
-				$('#difyPanel').show();
-				$('#quickActions').hide();
-				$('.upload-area').hide();
-				loadDifyApps();
-			} else {
-				isDifyMode = false;
-				$('#difyPanel').hide();
-				$('#quickActions').show();
-				$('.upload-area').show();
-			}
 		}
 
 		/* 发送消息 */
@@ -244,12 +175,6 @@
 			if (!msg || isProcessing) return;
 			appendMessage('user', msg);
 			$('#userInput').val('');
-
-			// Dify模式：通过Dify API发送
-			if (isDifyMode && currentConversationId) {
-				callDifyChat(msg);
-				return;
-			}
 			
 			// 任何时候发送的文本都保存为需求文档（如果还没有的话）
 			if (!analysisHistory['1.1'] && msg.length > 50) {
@@ -414,36 +339,17 @@
 				appendMessage('user', '[步骤1.7] 请生成结构化需求JSON');
 				callStepApi('/generateJson', { analysisResult: all }, '1.7');
 			}
-			else if (action === 'genCode') {
-				var json = analysisHistory['1.7'];
-				if (!json) { layer.msg('请先执行“生成JSON”步骤', {icon: 5}); return; }
-				appendMessage('user', '[第四步] 请根据结构化JSON生成全套RuoYi代码');
-				callCodeGenApi(json);
-			}
-			else if (action === 'genTest') {
-				var code = analysisHistory['4.0'];
-				var json = analysisHistory['1.7'];
-				if (!code) { layer.msg('请先执行“生成代码”步骤', {icon: 5}); return; }
-				appendMessage('user', '[第五步] 请生成测试用例');
-				callTestGenApi(code, json);
-			}
-			else if (action === 'review') {
-				var code = analysisHistory['4.0'];
-				if (!code) { layer.msg('请先执行“生成代码”步骤', {icon: 5}); return; }
-				appendMessage('user', '[第六步] 请进行代码评审检查');
-				callReviewApi(code);
-			}
 			else if (action === 'all') {
 				var doc = getDocContent();
 				if (!doc) { layer.msg('请先上传文件或在输入框输入需求文档', {icon: 5}); return; }
-				appendMessage('user', '[全流程] 开始执行完整AI开发流程（文档长度：' + doc.length + '字符）');
+				appendMessage('user', '[全流程] 开始执行完整需求分析流程（文档长度：' + doc.length + '字符）');
 				runFullPipeline(doc);
 			}
 		}
 
-		/* 一键执行全流程（链式调用：需求分析 → 代码生成 → 测试生成 → 代码评审） */
+		/* 一键执行全流程（链式调用） */
 		function runFullPipeline(doc) {
-			appendMessage('ai', '<b>开始全流程AI开发</b>，将依次执行：\n1️⃣ 提取关键信息 → 2️⃣ 适配分析 → 3️⃣ 完整性评估 → 4️⃣ 生成报告 → 5️⃣ 生成JSON → 6️⃣ 代码生成 → 7️⃣ 测试生成 → 8️⃣ 代码评审\n\n这可能需要10-20分钟，请耐心等待...');
+			appendMessage('ai', '<b>开始全流程分析</b>，将依次执行：提取关键信息 → 适配分析 → 完整性评估 → 生成报告 → 生成JSON\n\n这可能需要3-8分钟，请耐心等待...');
 			isProcessing = true;
 			$('#btnSend').prop('disabled', true);
 
@@ -453,20 +359,12 @@
 					pipelineStep('/evaluate', { analysisResult: allPrev }, '1.5', '完整性评估', function() {
 						var reportData = analysisHistory['1.3'] + '\n\n' + analysisHistory['1.4'] + '\n\n' + analysisHistory['1.5'];
 						pipelineStep('/report', { analysisResult: reportData }, '1.6', '完整性报告', function() {
+							// 报告完成后添加下载按钮
 							appendMessage('ai', '<button class="btn btn-sm btn-success" onclick="downloadWordReport()" style="margin-top:5px;"><i class="fa fa-download"></i> 下载Word报告</button>');
 							var allResult = Object.values(analysisHistory).join('\n\n---\n\n');
 							pipelineStep('/generateJson', { analysisResult: allResult }, '1.7', '结构化JSON', function() {
-								// 继续第四步：代码生成
-								pipelineStepCodeGen(analysisHistory['1.7'], function() {
-									// 继续第五步：测试生成
-									pipelineStepTestGen(analysisHistory['4.0'], analysisHistory['1.7'], function() {
-										// 继续第六步：代码评审
-										pipelineStepReview(analysisHistory['4.0'], function() {
-											appendMessage('ai', '<b>全流程AI开发完成！</b>\n\n已完成所有步骤：\n1. 需求分析（步骤1.3-1.7）\n2. 代码生成（第四步）\n3. 测试用例（第五步）\n4. 代码评审（第六步）\n\n你可以回顾上方的所有输出结果，复制代码到项目中使用。');
-											pipelineComplete();
-										});
-									});
-								});
+								appendMessage('ai', '<b>全流程分析完成！</b>\n\n所有步骤已完成，你可以：\n1. 检查上方每个步骤的输出结果\n2. 点击"下载Word报告"获取完整性报告\n3. 复制JSON用于第二步设计生成\n4. 在对话框中继续提问进行调整');
+								pipelineComplete();
 							});
 						});
 					});
@@ -505,253 +403,6 @@
 			isProcessing = false;
 			$('#btnSend').prop('disabled', false);
 			$('#modelInfo').text('DeepSeek V3 | 就绪');
-		}
-
-		/* ====================== 第四步：代码生成API ====================== */
-		function callCodeGenApi(jsonData) {
-			isProcessing = true;
-			$('#btnSend').prop('disabled', true);
-			$('#modelInfo').text('DeepSeek V3 | 代码生成中（预计3-5分钟）...');
-			showTyping();
-
-			$.ajax({
-				url: prefix + '/generate/code',
-				type: 'POST',
-				data: { requirementJson: jsonData },
-				timeout: 600000,
-				success: function(res) {
-					hideTyping();
-					if (res.code == 0) {
-						var data = res.data;
-						var markdown = data.markdown || '';
-						var fileCount = data.fileCount || 0;
-						analysisHistory['4.0'] = markdown;
-						markStepDone('4.0');
-						appendMessage('ai', '<b>第四步完成 — AI代码生成</b>\n\n共生成 **' + fileCount + '** 个文件\n\n' + markdown);
-					} else {
-						appendMessage('ai', '❌ 代码生成失败：' + res.msg);
-					}
-				},
-				error: function(xhr, status, error) {
-					hideTyping();
-					appendMessage('ai', '❌ 代码生成请求失败：' + (status === 'timeout' ? '请求超时（可尝试分步生成）' : error));
-				},
-				complete: function() {
-					isProcessing = false;
-					$('#btnSend').prop('disabled', false);
-					$('#modelInfo').text('DeepSeek V3 | 就绪');
-				}
-			});
-		}
-
-		/* 全流程用：代码生成步骤 */
-		function pipelineStepCodeGen(jsonData, onSuccess) {
-			$('#modelInfo').text('DeepSeek V3 | 第四步 代码生成...');
-			showTyping();
-			$.ajax({
-				url: prefix + '/generate/code',
-				type: 'POST',
-				data: { requirementJson: jsonData },
-				timeout: 600000,
-				success: function(res) {
-					hideTyping();
-					if (res.code == 0) {
-						var data = res.data;
-						analysisHistory['4.0'] = data.markdown || '';
-						appendMessage('ai', '<b>第四步完成 — 代码生成</b>\n\n共生成 ' + (data.fileCount || 0) + ' 个文件\n\n' + (data.markdown || ''));
-						markStepDone('4.0');
-						if (onSuccess) onSuccess();
-					} else {
-						appendMessage('ai', '代码生成失败：' + res.msg);
-						pipelineComplete();
-					}
-				},
-				error: function(xhr, status) {
-					hideTyping();
-					appendMessage('ai', '代码生成请求失败：' + (status === 'timeout' ? '请求超时' : status));
-					pipelineComplete();
-				}
-			});
-		}
-
-		/* ====================== 第五步：测试生成API ====================== */
-		function callTestGenApi(codeData, jsonData) {
-			isProcessing = true;
-			$('#btnSend').prop('disabled', true);
-			$('#modelInfo').text('DeepSeek V3 | 测试用例生成中...');
-			showTyping();
-
-			$.ajax({
-				url: prefix + '/generate/test',
-				type: 'POST',
-				data: { generatedCode: codeData, requirementJson: jsonData || '' },
-				timeout: 300000,
-				success: function(res) {
-					hideTyping();
-					if (res.code == 0) {
-						var data = res.data;
-						var files = data.files || {};
-						var fileCount = data.fileCount || 0;
-						var content = '';
-						for (var path in files) {
-							content += '### ' + path + '\n\n```java\n' + files[path] + '\n```\n\n';
-						}
-						analysisHistory['5.0'] = content;
-						markStepDone('5.0');
-						appendMessage('ai', '<b>第五步完成 — 测试用例生成</b>\n\n共生成 **' + fileCount + '** 个测试文件\n\n' + content);
-					} else {
-						appendMessage('ai', '❌ 测试生成失败：' + res.msg);
-					}
-				},
-				error: function(xhr, status, error) {
-					hideTyping();
-					appendMessage('ai', '❌ 测试生成请求失败：' + (status === 'timeout' ? '请求超时' : error));
-				},
-				complete: function() {
-					isProcessing = false;
-					$('#btnSend').prop('disabled', false);
-					$('#modelInfo').text('DeepSeek V3 | 就绪');
-				}
-			});
-		}
-
-		/* 全流程用：测试生成步骤 */
-		function pipelineStepTestGen(codeData, jsonData, onSuccess) {
-			$('#modelInfo').text('DeepSeek V3 | 第五步 测试生成...');
-			showTyping();
-			$.ajax({
-				url: prefix + '/generate/test',
-				type: 'POST',
-				data: { generatedCode: codeData, requirementJson: jsonData || '' },
-				timeout: 300000,
-				success: function(res) {
-					hideTyping();
-					if (res.code == 0) {
-						var data = res.data;
-						var files = data.files || {};
-						var content = '';
-						for (var path in files) {
-							content += '### ' + path + '\n\n```java\n' + files[path] + '\n```\n\n';
-						}
-						analysisHistory['5.0'] = content;
-						appendMessage('ai', '<b>第五步完成 — 测试用例</b>\n\n共生成 ' + (data.fileCount || 0) + ' 个测试文件\n\n' + content);
-						markStepDone('5.0');
-						if (onSuccess) onSuccess();
-					} else {
-						appendMessage('ai', '测试生成失败：' + res.msg);
-						pipelineComplete();
-					}
-				},
-				error: function(xhr, status) {
-					hideTyping();
-					appendMessage('ai', '测试生成请求失败：' + (status === 'timeout' ? '请求超时' : status));
-					pipelineComplete();
-				}
-			});
-		}
-
-		/* ====================== 第六步：代码评审API ====================== */
-		function callReviewApi(codeData) {
-			isProcessing = true;
-			$('#btnSend').prop('disabled', true);
-			$('#modelInfo').text('DeepSeek V3 | 代码评审中...');
-			showTyping();
-
-			$.ajax({
-				url: prefix + '/review/code',
-				type: 'POST',
-				data: { code: codeData },
-				timeout: 300000,
-				success: function(res) {
-					hideTyping();
-					if (res.code == 0) {
-						var report = res.data || res.msg;
-						analysisHistory['6.0'] = report;
-						markStepDone('6.0');
-						appendMessage('ai', '<b>第六步完成 — 代码评审报告</b>\n\n' + report
-							+ '\n\n<button class="btn btn-sm btn-warning" onclick="autoFixCode()" style="margin-top:5px;"><i class="fa fa-wrench"></i> 自动修复问题</button>');
-					} else {
-						appendMessage('ai', '❌ 代码评审失败：' + res.msg);
-					}
-				},
-				error: function(xhr, status, error) {
-					hideTyping();
-					appendMessage('ai', '❌ 代码评审请求失败：' + (status === 'timeout' ? '请求超时' : error));
-				},
-				complete: function() {
-					isProcessing = false;
-					$('#btnSend').prop('disabled', false);
-					$('#modelInfo').text('DeepSeek V3 | 就绪');
-				}
-			});
-		}
-
-		/* 全流程用：代码评审步骤 */
-		function pipelineStepReview(codeData, onSuccess) {
-			$('#modelInfo').text('DeepSeek V3 | 第六步 代码评审...');
-			showTyping();
-			$.ajax({
-				url: prefix + '/review/code',
-				type: 'POST',
-				data: { code: codeData },
-				timeout: 300000,
-				success: function(res) {
-					hideTyping();
-					if (res.code == 0) {
-						analysisHistory['6.0'] = res.data;
-						appendMessage('ai', '<b>第六步完成 — 代码评审</b>\n\n' + res.data);
-						markStepDone('6.0');
-						if (onSuccess) onSuccess();
-					} else {
-						appendMessage('ai', '代码评审失败：' + res.msg);
-						pipelineComplete();
-					}
-				},
-				error: function(xhr, status) {
-					hideTyping();
-					appendMessage('ai', '代码评审请求失败：' + (status === 'timeout' ? '请求超时' : status));
-					pipelineComplete();
-				}
-			});
-		}
-
-		/* 自动修复代码问题 */
-		function autoFixCode() {
-			var code = analysisHistory['4.0'];
-			var report = analysisHistory['6.0'];
-			if (!code || !report) {
-				layer.msg('缺少代码或评审报告', {icon: 5});
-				return;
-			}
-			isProcessing = true;
-			$('#btnSend').prop('disabled', true);
-			$('#modelInfo').text('DeepSeek V3 | 自动修复中...');
-			showTyping();
-
-			$.ajax({
-				url: prefix + '/review/fix',
-				type: 'POST',
-				data: { code: code, reviewReport: report },
-				timeout: 300000,
-				success: function(res) {
-					hideTyping();
-					if (res.code == 0) {
-						analysisHistory['4.0'] = res.data;
-						appendMessage('ai', '<b>代码修复完成</b>\n\n' + res.data);
-					} else {
-						appendMessage('ai', '❌ 修复失败：' + res.msg);
-					}
-				},
-				error: function(xhr, status, error) {
-					hideTyping();
-					appendMessage('ai', '❌ 修复请求失败：' + (status === 'timeout' ? '请求超时' : error));
-				},
-				complete: function() {
-					isProcessing = false;
-					$('#btnSend').prop('disabled', false);
-					$('#modelInfo').text('DeepSeek V3 | 就绪');
-				}
-			});
 		}
 
 		/* 调用报告生成API（步骤1.6） */
@@ -957,257 +608,6 @@
 			if (bytes < 1024) return bytes + 'B';
 			if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + 'KB';
 			return (bytes / (1024 * 1024)).toFixed(1) + 'MB';
-		}
-
-		/* ====================== Dify会话管理 ====================== */
-
-		/* 加载Dify应用列表 */
-		function loadDifyApps() {
-			if (difyApps.length > 0) return;
-			$.ajax({
-				url: prefix + '/dify/apps',
-				type: 'POST',
-				success: function(res) {
-					if (res.code == 0) {
-						difyApps = res.data || [];
-						var select = $('#difyAppSelect');
-						select.empty();
-						if (difyApps.length === 0) {
-							select.append('<option value="">暂无可用应用（请先配置）</option>');
-							$('#difyModeInfo').text('未配置Dify应用，将使用LangChain4j');
-						} else {
-							select.append('<option value="">请选择应用...</option>');
-							for (var i = 0; i < difyApps.length; i++) {
-								var app = difyApps[i];
-								var typeName = {0:'Chat',1:'Workflow',2:'Completion',3:'Agent'}[app.appType] || '';
-								select.append('<option value="' + app.appId + '">[' + typeName + '] ' + app.appName + '</option>');
-							}
-							$('#difyModeInfo').text('共 ' + difyApps.length + ' 个可用应用');
-						}
-					}
-				}
-			});
-		}
-
-		/* Dify应用切换 */
-		function onDifyAppChange() {
-			var appId = $('#difyAppSelect').val();
-			if (!appId) {
-				currentAppId = null;
-				currentConversationId = null;
-				$('#convHistory').hide();
-				return;
-			}
-			currentAppId = parseInt(appId);
-			currentConversationId = null;
-			loadConversationHistory();
-		}
-
-		/* 加载会话历史 */
-		function loadConversationHistory() {
-			if (!currentAppId) return;
-			$.ajax({
-				url: prefix + '/conversation/list',
-				type: 'POST',
-				data: { appId: currentAppId },
-				success: function(res) {
-					if (res.code == 0) {
-						var list = res.data || [];
-						renderConversationList(list);
-					}
-				}
-			});
-		}
-
-		/* 渲染会话列表 */
-		function renderConversationList(list) {
-			var container = $('#convHistory');
-			container.empty();
-			if (list.length === 0) {
-				container.html('<div class="conv-history-empty">暂无历史会话，请点击"新对话"开始</div>');
-			} else {
-				for (var i = 0; i < list.length; i++) {
-					var conv = list[i];
-					var active = (currentConversationId == conv.conversationId) ? ' active' : '';
-					var time = conv.lastMessageTime || conv.createTime || '';
-					if (time && time.length > 16) time = time.substring(5, 16);
-					var html = '<div class="conv-item' + active + '" data-id="' + conv.conversationId + '" onclick="switchConversation(' + conv.conversationId + ')">'
-						+ '<span class="conv-title" title="' + conv.title + '">' + conv.title + '</span>'
-						+ '<span class="conv-meta">' + (conv.messageCount || 0) + '条 ' + time + '</span>'
-						+ '<span class="conv-actions">'
-						+ '<a href="javascript:void(0)" onclick="event.stopPropagation();renameConversation(' + conv.conversationId + ')" title="重命名"><i class="fa fa-pencil"></i></a>'
-						+ '<a href="javascript:void(0)" onclick="event.stopPropagation();deleteConversation(' + conv.conversationId + ')" title="删除"><i class="fa fa-trash"></i></a>'
-						+ '</span></div>';
-					container.append(html);
-				}
-			}
-			container.show();
-		}
-
-		/* 切换到某个会话 */
-		function switchConversation(convId) {
-			currentConversationId = convId;
-			$('.conv-item').removeClass('active');
-			$('.conv-item[data-id="' + convId + '"]').addClass('active');
-			// 清空聊天区并加载历史消息
-			$('#chatArea').empty();
-			loadConversationMessages(convId);
-		}
-
-		/* 加载会话消息 */
-		function loadConversationMessages(convId) {
-			showTyping();
-			$.ajax({
-				url: prefix + '/conversation/messages',
-				type: 'POST',
-				data: { conversationId: convId },
-				success: function(res) {
-					hideTyping();
-					if (res.code == 0) {
-						var messages = res.data || [];
-						if (messages.length === 0) {
-							appendMessage('ai', '会话已就绪，请输入你的问题。');
-						} else {
-							for (var i = 0; i < messages.length; i++) {
-								var msg = messages[i];
-								var role = msg.role === '0' ? 'user' : 'ai';
-								appendMessage(role, msg.content);
-							}
-						}
-						$('#difyModeInfo').text('会话 #' + convId + ' | 共 ' + messages.length + ' 条消息');
-					}
-				},
-				error: function() {
-					hideTyping();
-					appendMessage('ai', '加载历史消息失败');
-				}
-			});
-		}
-
-		/* 创建新会话 */
-		function createNewConversation() {
-			if (!currentAppId) {
-				layer.msg('请先选择一个Dify应用', {icon: 7});
-				return;
-			}
-			layer.prompt({title: '输入会话标题', value: '新对话', formType: 0}, function(title, index) {
-				layer.close(index);
-				$.ajax({
-					url: prefix + '/conversation/create',
-					type: 'POST',
-					data: { appId: currentAppId, title: title },
-					success: function(res) {
-						if (res.code == 0) {
-							var conv = res.data;
-							currentConversationId = conv.conversationId;
-							$('#chatArea').empty();
-							appendMessage('ai', '<b>新对话已创建：</b>' + conv.title + '\n\n请输入你的问题开始对话。');
-							loadConversationHistory();
-							layer.msg('会话创建成功', {icon: 1});
-						} else {
-							layer.msg(res.msg, {icon: 2});
-						}
-					}
-				});
-			});
-		}
-
-		/* 删除会话 */
-		function deleteConversation(convId) {
-			layer.confirm('确定删除该会话及其所有消息？', {icon: 3, title: '提示'}, function(index) {
-				layer.close(index);
-				$.ajax({
-					url: prefix + '/conversation/delete',
-					type: 'POST',
-					data: { conversationId: convId },
-					success: function(res) {
-						if (res.code == 0) {
-							if (currentConversationId == convId) {
-								currentConversationId = null;
-								$('#chatArea').empty();
-								appendMessage('ai', '会话已删除。请选择或新建一个会话。');
-							}
-							loadConversationHistory();
-							layer.msg('删除成功', {icon: 1});
-						} else {
-							layer.msg(res.msg, {icon: 2});
-						}
-					}
-				});
-			});
-		}
-
-		/* 重命名会话 */
-		function renameConversation(convId) {
-			layer.prompt({title: '修改会话标题', formType: 0}, function(title, index) {
-				layer.close(index);
-				$.ajax({
-					url: prefix + '/conversation/rename',
-					type: 'POST',
-					data: { conversationId: convId, title: title },
-					success: function(res) {
-						if (res.code == 0) {
-							loadConversationHistory();
-							layer.msg('修改成功', {icon: 1});
-						} else {
-							layer.msg(res.msg, {icon: 2});
-						}
-					}
-				});
-			});
-		}
-
-		/* 切换会话历史面板显示/隐藏 */
-		function toggleConvHistory() {
-			$('#convHistory').toggle();
-		}
-
-		/* 通过Dify发送消息（带持久化） */
-		function callDifyChat(message) {
-			if (!currentConversationId) {
-				appendMessage('ai', '请先选择或新建一个会话。');
-				return;
-			}
-			isProcessing = true;
-			$('#btnSend').prop('disabled', true);
-			$('#modelInfo').text('Dify | 思考中...');
-			showTyping();
-
-			$.ajax({
-				url: prefix + '/dify/chat',
-				type: 'POST',
-				data: { conversationId: currentConversationId, content: message },
-				timeout: 300000,
-				success: function(res) {
-					hideTyping();
-					if (res.code == 0) {
-						var data = res.data;
-						appendMessage('ai', data.answer);
-						var info = [];
-						if (data.model) info.push(data.model);
-						if (data.tokens) info.push(data.tokens + ' tokens');
-						if (data.costTime) info.push((data.costTime / 1000).toFixed(1) + 's');
-						$('#difyModeInfo').text(info.join(' | '));
-					} else {
-						appendMessage('ai', '对话失败：' + res.msg);
-					}
-				},
-				error: function(xhr, status, error) {
-					hideTyping();
-					if (status === 'timeout') {
-						appendMessage('ai', '请求超时，请稍后重试。');
-					} else {
-						appendMessage('ai', '网络错误：' + error);
-					}
-				},
-				complete: function() {
-					isProcessing = false;
-					$('#btnSend').prop('disabled', false);
-					$('#modelInfo').text('Dify | 就绪');
-					// 更新会话列表中的消息数
-					loadConversationHistory();
-				}
-			});
 		}
 	</script>
 </body>
