@@ -9,51 +9,70 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="appId"              column="app_id"               />
         <result property="userId"             column="user_id"              />
         <result property="title"              column="title"                />
+        <result property="customTitle"        column="custom_title"         />
+        <result property="top"                column="top"                  />
+        <result property="source"             column="source"               />
         <result property="conversationType"   column="conversation_type"    />
         <result property="difyConversationId" column="dify_conversation_id" />
         <result property="messageCount"       column="message_count"        />
         <result property="lastMessageTime"    column="last_message_time"    />
         <result property="status"             column="status"               />
+        <result property="deleteTime"         column="delete_time"          />
         <result property="createTime"         column="create_time"          />
         <result property="updateTime"         column="update_time"          />
         <result property="appName"            column="app_name"             />
         <result property="userName"           column="user_name"            />
     </resultMap>
 
+    <!-- 完整查询（带JOIN） -->
     <sql id="selectAiChatConversationVo">
-        select c.conversation_id, c.app_id, c.user_id, c.title, c.conversation_type, 
-               c.dify_conversation_id, c.message_count, c.last_message_time, c.status, 
-               c.create_time, c.update_time, a.app_name, u.user_name
+        select c.conversation_id, c.app_id, c.user_id, c.title, c.custom_title, c.top,
+               c.source, c.conversation_type, c.dify_conversation_id, c.message_count,
+               c.last_message_time, c.status, c.delete_time, c.create_time, c.update_time,
+               IFNULL(a.app_name, '') as app_name, u.user_name
         from ai_chat_conversation c
-        left join ai_dify_app a on c.app_id = a.app_id
+        left join ai_dify_app a on c.app_id = a.app_id and c.app_id > 0
         left join sys_user u on c.user_id = u.user_id
     </sql>
 
+    <!-- 轻量查询：仅查conversation表，不做JOIN（用于侧边栏列表，性能优先） -->
+    <sql id="selectAiChatConversationSimple">
+        select conversation_id, app_id, user_id, title, custom_title, top, source,
+               conversation_type, dify_conversation_id, message_count, last_message_time,
+               status, delete_time, create_time, update_time
+        from ai_chat_conversation
+    </sql>
+
     <select id="selectAiChatConversationByConversationId" parameterType="Long" resultMap="AiChatConversationResult">
-        <include refid="selectAiChatConversationVo"/>
-        where c.conversation_id = #{conversationId}
+        <include refid="selectAiChatConversationSimple"/>
+        where conversation_id = #{conversationId}
     </select>
 
+    <!-- 会话列表查询（仿FastGPT: 过滤软删除、置顶优先排序） -->
     <select id="selectAiChatConversationList" parameterType="AiChatConversation" resultMap="AiChatConversationResult">
-        <include refid="selectAiChatConversationVo"/>
+        <include refid="selectAiChatConversationSimple"/>
         <where>
+            AND delete_time IS NULL
             <if test="appId != null">
-                AND c.app_id = #{appId}
+                AND app_id = #{appId}
             </if>
             <if test="userId != null">
-                AND c.user_id = #{userId}
+                AND user_id = #{userId}
             </if>
             <if test="title != null and title != ''">
-                AND c.title like concat('%', #{title}, '%')
+                AND (title like concat('%', #{title}, '%') OR custom_title like concat('%', #{title}, '%'))
             </if>
             <if test="conversationType != null and conversationType != ''">
-                AND c.conversation_type = #{conversationType}
+                AND conversation_type = #{conversationType}
+            </if>
+            <if test="source != null and source != ''">
+                AND source = #{source}
             </if>
             <if test="status != null and status != ''">
-                AND c.status = #{status}
+                AND status = #{status}
             </if>
         </where>
-        order by c.last_message_time desc, c.create_time desc
+        order by top desc, last_message_time desc, create_time desc
     </select>
 
     <insert id="insertAiChatConversation" parameterType="AiChatConversation" useGeneratedKeys="true" keyProperty="conversationId">
@@ -62,6 +81,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="appId != null">app_id,</if>
             <if test="userId != null">user_id,</if>
             <if test="title != null and title != ''">title,</if>
+            <if test="customTitle != null and customTitle != ''">custom_title,</if>
+            <if test="top != null">top,</if>
+            <if test="source != null and source != ''">source,</if>
             <if test="conversationType != null">conversation_type,</if>
             <if test="difyConversationId != null">dify_conversation_id,</if>
             <if test="messageCount != null">message_count,</if>
@@ -72,6 +94,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="appId != null">#{appId},</if>
             <if test="userId != null">#{userId},</if>
             <if test="title != null and title != ''">#{title},</if>
+            <if test="customTitle != null and customTitle != ''">#{customTitle},</if>
+            <if test="top != null">#{top},</if>
+            <if test="source != null and source != ''">#{source},</if>
             <if test="conversationType != null">#{conversationType},</if>
             <if test="difyConversationId != null">#{difyConversationId},</if>
             <if test="messageCount != null">#{messageCount},</if>
@@ -85,16 +110,39 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <trim prefix="SET" suffixOverrides=",">
             <if test="appId != null">app_id = #{appId},</if>
             <if test="title != null and title != ''">title = #{title},</if>
+            <if test="customTitle != null">custom_title = #{customTitle},</if>
+            <if test="top != null">top = #{top},</if>
+            <if test="source != null">source = #{source},</if>
             <if test="conversationType != null">conversation_type = #{conversationType},</if>
             <if test="difyConversationId != null">dify_conversation_id = #{difyConversationId},</if>
             <if test="messageCount != null">message_count = #{messageCount},</if>
             <if test="lastMessageTime != null">last_message_time = #{lastMessageTime},</if>
             <if test="status != null">status = #{status},</if>
+            <if test="deleteTime != null">delete_time = #{deleteTime},</if>
             update_time = sysdate()
         </trim>
         where conversation_id = #{conversationId}
     </update>
 
+    <!-- 软删除（仿FastGPT deleteTime机制） -->
+    <update id="softDeleteConversation" parameterType="Long">
+        update ai_chat_conversation set delete_time = sysdate(), update_time = sysdate()
+        where conversation_id = #{conversationId}
+    </update>
+
+    <!-- 切换置顶（仿FastGPT top字段） -->
+    <update id="toggleTopConversation">
+        update ai_chat_conversation set top = #{top}, update_time = sysdate()
+        where conversation_id = #{conversationId}
+    </update>
+
+    <!-- 清空用户所有对话历史（仿FastGPT clearHistories，软删除） -->
+    <update id="softDeleteAllByUserId" parameterType="Long">
+        update ai_chat_conversation set delete_time = sysdate(), update_time = sysdate()
+        where user_id = #{userId} and delete_time is null
+    </update>
+
+    <!-- 物理删除（管理员操作） -->
     <delete id="deleteAiChatConversationByConversationId" parameterType="Long">
         delete from ai_chat_conversation where conversation_id = #{conversationId}
     </delete>

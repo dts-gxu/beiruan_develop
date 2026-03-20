@@ -30,6 +30,15 @@ public class AiChatConversation extends BaseEntity
     @Excel(name = "会话标题")
     private String title;
 
+    /** 用户自定义标题（仿FastGPT customTitle） */
+    private String customTitle;
+
+    /** 是否置顶（仿FastGPT top字段） */
+    private Integer top;
+
+    /** 来源（online/api/share，仿FastGPT source字段） */
+    private String source;
+
     /** 会话类型（0=普通对话 1=需求分析 2=代码生成） */
     @Excel(name = "会话类型", readConverterExp = "0=普通对话,1=需求分析,2=代码生成")
     private String conversationType;
@@ -47,6 +56,9 @@ public class AiChatConversation extends BaseEntity
     /** 状态（0=正常 1=归档 2=删除） */
     @Excel(name = "状态", readConverterExp = "0=正常,1=归档,2=删除")
     private String status;
+
+    /** 软删除时间（仿FastGPT deleteTime，null=未删除） */
+    private Date deleteTime;
 
     /** 关联的应用名称（非数据库字段） */
     private String appName;
@@ -92,6 +104,36 @@ public class AiChatConversation extends BaseEntity
     public void setTitle(String title)
     {
         this.title = title;
+    }
+
+    public String getCustomTitle()
+    {
+        return customTitle;
+    }
+
+    public void setCustomTitle(String customTitle)
+    {
+        this.customTitle = customTitle;
+    }
+
+    public Integer getTop()
+    {
+        return top;
+    }
+
+    public void setTop(Integer top)
+    {
+        this.top = top;
+    }
+
+    public String getSource()
+    {
+        return source;
+    }
+
+    public void setSource(String source)
+    {
+        this.source = source;
     }
 
     public String getConversationType()
@@ -144,6 +186,16 @@ public class AiChatConversation extends BaseEntity
         this.status = status;
     }
 
+    public Date getDeleteTime()
+    {
+        return deleteTime;
+    }
+
+    public void setDeleteTime(Date deleteTime)
+    {
+        this.deleteTime = deleteTime;
+    }
+
     public String getAppName()
     {
         return appName;
@@ -172,11 +224,15 @@ public class AiChatConversation extends BaseEntity
             .append("appId", getAppId())
             .append("userId", getUserId())
             .append("title", getTitle())
+            .append("customTitle", getCustomTitle())
+            .append("top", getTop())
+            .append("source", getSource())
             .append("conversationType", getConversationType())
             .append("difyConversationId", getDifyConversationId())
             .append("messageCount", getMessageCount())
             .append("lastMessageTime", getLastMessageTime())
             .append("status", getStatus())
+            .append("deleteTime", getDeleteTime())
             .append("createTime", getCreateTime())
             .append("updateTime", getUpdateTime())
             .toString();

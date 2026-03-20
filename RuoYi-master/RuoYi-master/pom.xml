@@ -232,6 +232,13 @@
                 <version>${langchain4j.version}</version>
             </dependency>
 
+            <!-- LangChain4j JDK HttpClient（自定义HTTP/1.1避免RST_STREAM） -->
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-http-client-jdk</artifactId>
+                <version>${langchain4j.version}</version>
+            </dependency>
+
         </dependencies>
     </dependencyManagement>
 
@@ -267,6 +274,9 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <version>${spring-boot.version}</version>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
             </plugin>
         </plugins>
     </build>

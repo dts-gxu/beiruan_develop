@@ -61,6 +61,8 @@ public class AiChatSessionServiceImpl implements IAiChatSessionService
         conversation.setUserId(userId);
         conversation.setTitle(title != null ? title : "新对话");
         conversation.setConversationType(conversationType != null ? conversationType : "0");
+        conversation.setSource("online");
+        conversation.setTop(0);
         conversation.setStatus("0");
         conversation.setMessageCount(0);
         conversation.setCreateTime(DateUtils.getNowDate());
@@ -70,14 +72,13 @@ public class AiChatSessionServiceImpl implements IAiChatSessionService
     }
 
     /**
-     * 删除会话（同时删除消息）
+     * 删除会话（仿FastGPT软删除机制，不物理删除数据）
      */
     @Override
     @Transactional
     public int deleteConversation(Long conversationId)
     {
-        messageMapper.deleteAiChatMessageByConversationId(conversationId);
-        return conversationMapper.deleteAiChatConversationByConversationId(conversationId);
+        return conversationMapper.softDeleteConversation(conversationId);
     }
 
     /**
@@ -93,6 +94,36 @@ public class AiChatSessionServiceImpl implements IAiChatSessionService
             messageMapper.deleteAiChatMessageByConversationId(Long.parseLong(id));
         }
         return conversationMapper.deleteAiChatConversationByConversationIds(idArray);
+    }
+
+    /**
+     * 惰性创建会话（仿FastGPT的upsert模式）
+     * 如果conversationId存在则返回该会话，否则自动创建新会话
+     * 标题自动从第一条用户消息中提取前30字
+     */
+    @Override
+    @Transactional
+    public AiChatConversation ensureConversation(Long conversationId, Long userId, String firstMessage)
+    {
+        if (conversationId != null && conversationId > 0)
+        {
+            AiChatConversation existing = conversationMapper.selectAiChatConversationByConversationId(conversationId);
+            if (existing != null)
+            {
+                return existing;
+            }
+        }
+        // 自动创建：标题取自第一条消息的前30字
+        String autoTitle = "新对话";
+        if (firstMessage != null && !firstMessage.trim().isEmpty())
+        {
+            autoTitle = firstMessage.trim();
+            if (autoTitle.length() > 30)
+            {
+                autoTitle = autoTitle.substring(0, 30) + "...";
+            }
+        }
+        return createConversation(0L, userId, autoTitle, "0");
     }
 
     /**
@@ -117,6 +148,7 @@ public class AiChatSessionServiceImpl implements IAiChatSessionService
     /**
      * 保存AI回复消息
      */
+    @Override
     public AiChatMessage saveAiReply(Long conversationId, String answer, String difyMessageId,
             String modelName, int tokensUsed, int costTime)
     {
@@ -139,6 +171,7 @@ public class AiChatSessionServiceImpl implements IAiChatSessionService
     /**
      * 更新会话的Dify会话ID
      */
+    @Override
     public void updateDifyConversationId(Long conversationId, String difyConversationId)
     {
         AiChatConversation update = new AiChatConversation();
@@ -167,6 +200,25 @@ public class AiChatSessionServiceImpl implements IAiChatSessionService
         update.setTitle(title);
         update.setUpdateTime(DateUtils.getNowDate());
         return conversationMapper.updateAiChatConversation(update);
+    }
+
+    /**
+     * 切换置顶（仿FastGPT top字段）
+     */
+    @Override
+    public int toggleTopConversation(Long conversationId, Integer top)
+    {
+        return conversationMapper.toggleTopConversation(conversationId, top);
+    }
+
+    /**
+     * 清空用户所有对话历史（仿FastGPT clearHistories，软删除）
+     */
+    @Override
+    @Transactional
+    public int clearAllConversations(Long userId)
+    {
+        return conversationMapper.softDeleteAllByUserId(userId);
     }
 
     /**

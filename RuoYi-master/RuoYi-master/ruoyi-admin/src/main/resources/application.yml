@@ -20,6 +20,11 @@ server:
   servlet:
     # 应用的访问路径
     context-path: /
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+      force-response: true
   tomcat:
     # tomcat的URI编码
     uri-encoding: UTF-8
@@ -67,8 +72,8 @@ spring:
   # 服务模块
   devtools:
     restart:
-      # 热部署开关
-      enabled: true
+      # 热部署开关（关闭以解决EhCache CacheManager shutdown问题）
+      enabled: false
 
 # MyBatis
 mybatis:
