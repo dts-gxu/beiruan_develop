@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org">
+<head>
+	<th:block th:include="include :: header('文档管理')" />
+</head>
+<body class="gray-bg">
+	<div class="container-div">
+		<div class="row">
+			<div class="col-sm-12" style="margin-bottom:10px;">
+				<h4>
+					<i class="fa fa-book"></i> <span th:text="${kb.kbName}">知识库</span>
+					<small th:text="${kb.kbDesc}"></small>
+					<span class="badge badge-info" th:if="${kb.difyDatasetId != null and kb.difyDatasetId != ''}" th:text="'Dify已同步'"></span>
+				</h4>
+			</div>
+
+			<div class="col-sm-12 search-collapse">
+				<form id="formId">
+					<input type="hidden" name="kbId" th:value="${kb.kbId}">
+					<div class="select-list">
+						<ul>
+							<li>
+								<label>文档名称：</label>
+								<input type="text" name="docName"/>
+							</li>
+							<li>
+								<label>索引状态：</label>
+								<select name="indexingStatus">
+									<option value="">所有</option>
+									<option value="waiting">等待中</option>
+									<option value="indexing">索引中</option>
+									<option value="completed">已完成</option>
+									<option value="error">错误</option>
+								</select>
+							</li>
+							<li>
+								<a class="btn btn-primary btn-rounded btn-sm" onclick="$.table.search()"><i class="fa fa-search"></i>&nbsp;搜索</a>
+								<a class="btn btn-warning btn-rounded btn-sm" onclick="$.form.reset()"><i class="fa fa-refresh"></i>&nbsp;重置</a>
+							</li>
+						</ul>
+					</div>
+				</form>
+			</div>
+
+			<div class="btn-group-sm" id="toolbar" role="group">
+				<a class="btn btn-success" onclick="addTextDoc()">
+					<i class="fa fa-plus"></i> 添加文本文档
+				</a>
+				<a class="btn btn-primary" onclick="uploadFileDoc()">
+					<i class="fa fa-upload"></i> 上传文件
+				</a>
+				<a class="btn btn-info" onclick="syncFromDify()">
+					<i class="fa fa-refresh"></i> 从Dify同步
+				</a>
+				<a class="btn btn-danger multiple disabled" onclick="$.operate.removeAll()">
+					<i class="fa fa-remove"></i> 删除
+				</a>
+			</div>
+			<div class="col-sm-12 select-table table-striped">
+				<table id="bootstrap-table"></table>
+			</div>
+		</div>
+	</div>
+
+	<!-- 上传文件模态框 -->
+	<div class="modal fade" id="uploadModal" tabindex="-1" role="dialog">
+		<div class="modal-dialog" role="document">
+			<div class="modal-content">
+				<div class="modal-header">
+					<button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+					<h4 class="modal-title">上传文件到知识库</h4>
+				</div>
+				<div class="modal-body">
+					<form id="uploadForm" enctype="multipart/form-data">
+						<input type="hidden" name="kbId" th:value="${kb.kbId}">
+						<div class="form-group">
+							<label>选择文件（支持 txt/md/pdf/docx）：</label>
+							<input type="file" name="file" id="fileInput" class="form-control" accept=".txt,.md,.pdf,.docx,.doc,.csv,.html,.json" required>
+						</div>
+					</form>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-default" data-dismiss="modal">取消</button>
+					<button type="button" class="btn btn-primary" onclick="doUpload()">上传</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<th:block th:include="include :: footer" />
+	<script th:inline="javascript">
+		var prefix = ctx + "ai/knowledge";
+		var kbId = [[${kb.kbId}]];
+
+		$(function() {
+			var options = {
+				url: prefix + "/document/list",
+				removeUrl: prefix + "/document/remove",
+				modalName: "文档",
+				queryParams: function(params) {
+					params.kbId = kbId;
+					return params;
+				},
+				columns: [{
+					checkbox: true
+				},
+				{
+					field: 'docId',
+					title: 'ID',
+					visible: false
+				},
+				{
+					field: 'docName',
+					title: '文档名称'
+				},
+				{
+					field: 'docType',
+					title: '类型',
+					align: 'center',
+					formatter: function(value) {
+						var map = { 'text': '<span class="badge badge-info">文本</span>', 'file': '<span class="badge badge-primary">文件</span>', 'url': '<span class="badge badge-warning">链接</span>' };
+						return map[value] || value;
+					}
+				},
+				{
+					field: 'wordCount',
+					title: '字数',
+					align: 'center'
+				},
+				{
+					field: 'indexingStatus',
+					title: '索引状态',
+					align: 'center',
+					formatter: function(value) {
+						var map = {
+							'waiting': '<span class="badge badge-secondary">等待中</span>',
+							'indexing': '<span class="badge badge-warning"><i class="fa fa-spinner fa-spin"></i> 索引中</span>',
+							'completed': '<span class="badge badge-success">已完成</span>',
+							'error': '<span class="badge badge-danger">错误</span>'
+						};
+						return map[value] || '<span class="badge badge-secondary">' + (value || '未知') + '</span>';
+					}
+				},
+				{
+					field: 'difyDocumentId',
+					title: 'Dify同步',
+					align: 'center',
+					formatter: function(value) {
+						return (value && value.length > 0) ? '<span class="badge badge-success">已同步</span>' : '<span class="badge badge-secondary">未同步</span>';
+					}
+				},
+				{
+					field: 'createTime',
+					title: '创建时间'
+				},
+				{
+					title: '操作',
+					align: 'center',
+					formatter: function(value, row, index) {
+						var actions = [];
+						actions.push('<a class="btn btn-success btn-xs" href="javascript:void(0)" onclick="editDoc(\'' + row.docId + '\')"><i class="fa fa-edit"></i>编辑</a> ');
+						if (row.indexingStatus === 'waiting' || row.indexingStatus === 'indexing') {
+							actions.push('<a class="btn btn-info btn-xs" href="javascript:void(0)" onclick="refreshStatus(\'' + row.docId + '\')"><i class="fa fa-refresh"></i>刷新</a> ');
+						}
+						actions.push('<a class="btn btn-danger btn-xs" href="javascript:void(0)" onclick="$.operate.remove(\'' + row.docId + '\')"><i class="fa fa-remove"></i>删除</a>');
+						return actions.join('');
+					}
+				}]
+			};
+			$.table.init(options);
+		});
+
+		/* 编辑文档 */
+		function editDoc(docId) {
+			var url = prefix + "/editDocument/" + docId;
+			$.modal.open("编辑文档", url, 800, 550);
+		}
+
+		/* 添加文本文档 */
+		function addTextDoc() {
+			var url = prefix + "/addDocument/" + kbId;
+			$.modal.open("添加文本文档", url, 800, 500);
+		}
+
+		/* 上传文件 */
+		function uploadFileDoc() {
+			$('#uploadModal').modal('show');
+		}
+
+		function doUpload() {
+			var formData = new FormData($('#uploadForm')[0]);
+			if (!$('#fileInput').val()) {
+				$.modal.msgWarning("请选择文件");
+				return;
+			}
+			$.modal.loading("正在上传...");
+			$.ajax({
+				url: prefix + "/document/uploadFile",
+				type: "post",
+				data: formData,
+				processData: false,
+				contentType: false,
+				success: function(result) {
+					$.modal.closeLoading();
+					$('#uploadModal').modal('hide');
+					if (result.code == 0) {
+						$.modal.msgSuccess(result.msg);
+					} else {
+						$.modal.msgError(result.msg);
+					}
+					$.table.refresh();
+				},
+				error: function() {
+					$.modal.closeLoading();
+					$.modal.msgError("上传失败");
+				}
+			});
+		}
+
+		/* 从Dify同步 */
+		function syncFromDify() {
+			$.modal.loading("正在同步...");
+			$.ajax({
+				url: prefix + "/syncFromDify",
+				type: "post",
+				data: { kbId: kbId },
+				success: function(result) {
+					$.modal.closeLoading();
+					if (result.code == 0) {
+						$.modal.msgSuccess(result.msg);
+					} else {
+						$.modal.msgError(result.msg);
+					}
+					$.table.refresh();
+				}
+			});
+		}
+
+		/* 刷新索引状态 */
+		function refreshStatus(docId) {
+			$.ajax({
+				url: prefix + "/document/refreshStatus",
+				type: "post",
+				data: { docId: docId },
+				success: function(result) {
+					if (result.code == 0) {
+						$.modal.msgSuccess(result.msg);
+					} else {
+						$.modal.msgError(result.msg);
+					}
+					$.table.refresh();
+				}
+			});
+		}
+	</script>
+</body>
+</html>

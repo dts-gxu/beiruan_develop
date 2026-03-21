@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.AiKnowledgeBaseMapper">
+    
+    <resultMap type="AiKnowledgeBase" id="AiKnowledgeBaseResult">
+        <id     property="kbId"           column="kb_id"            />
+        <result property="kbName"         column="kb_name"          />
+        <result property="kbDesc"         column="kb_desc"          />
+        <result property="category"       column="category"         />
+        <result property="difyDatasetId"  column="dify_dataset_id"  />
+        <result property="difyApiKey"     column="dify_api_key"     />
+        <result property="difyBaseUrl"    column="dify_base_url"    />
+        <result property="documentCount"  column="document_count"   />
+        <result property="wordCount"      column="word_count"       />
+        <result property="status"         column="status"           />
+        <result property="delFlag"        column="del_flag"         />
+        <result property="createBy"       column="create_by"        />
+        <result property="createTime"     column="create_time"      />
+        <result property="updateBy"       column="update_by"        />
+        <result property="updateTime"     column="update_time"      />
+        <result property="remark"         column="remark"           />
+    </resultMap>
+
+    <sql id="selectAiKnowledgeBaseVo">
+        select kb_id, kb_name, kb_desc, category, dify_dataset_id, dify_api_key, dify_base_url,
+               document_count, word_count, status, del_flag, create_by, create_time, update_by, update_time, remark
+        from ai_knowledge_base
+    </sql>
+
+    <select id="selectAiKnowledgeBaseByKbId" parameterType="Long" resultMap="AiKnowledgeBaseResult">
+        <include refid="selectAiKnowledgeBaseVo"/>
+        where kb_id = #{kbId} and del_flag = '0'
+    </select>
+
+    <select id="selectAiKnowledgeBaseList" parameterType="AiKnowledgeBase" resultMap="AiKnowledgeBaseResult">
+        <include refid="selectAiKnowledgeBaseVo"/>
+        <where>
+            del_flag = '0'
+            <if test="kbName != null and kbName != ''">
+                AND kb_name like concat('%', #{kbName}, '%')
+            </if>
+            <if test="category != null and category != ''">
+                AND category = #{category}
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <insert id="insertAiKnowledgeBase" parameterType="AiKnowledgeBase" useGeneratedKeys="true" keyProperty="kbId">
+        insert into ai_knowledge_base
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="kbName != null and kbName != ''">kb_name,</if>
+            <if test="kbDesc != null">kb_desc,</if>
+            <if test="category != null">category,</if>
+            <if test="difyDatasetId != null">dify_dataset_id,</if>
+            <if test="difyApiKey != null">dify_api_key,</if>
+            <if test="difyBaseUrl != null">dify_base_url,</if>
+            <if test="documentCount != null">document_count,</if>
+            <if test="wordCount != null">word_count,</if>
+            <if test="status != null">status,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="remark != null">remark,</if>
+            create_time
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="kbName != null and kbName != ''">#{kbName},</if>
+            <if test="kbDesc != null">#{kbDesc},</if>
+            <if test="category != null">#{category},</if>
+            <if test="difyDatasetId != null">#{difyDatasetId},</if>
+            <if test="difyApiKey != null">#{difyApiKey},</if>
+            <if test="difyBaseUrl != null">#{difyBaseUrl},</if>
+            <if test="documentCount != null">#{documentCount},</if>
+            <if test="wordCount != null">#{wordCount},</if>
+            <if test="status != null">#{status},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="remark != null">#{remark},</if>
+            sysdate()
+        </trim>
+    </insert>
+
+    <update id="updateAiKnowledgeBase" parameterType="AiKnowledgeBase">
+        update ai_knowledge_base
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="kbName != null and kbName != ''">kb_name = #{kbName},</if>
+            <if test="kbDesc != null">kb_desc = #{kbDesc},</if>
+            <if test="category != null">category = #{category},</if>
+            <if test="difyDatasetId != null">dify_dataset_id = #{difyDatasetId},</if>
+            <if test="difyApiKey != null">dify_api_key = #{difyApiKey},</if>
+            <if test="difyBaseUrl != null">dify_base_url = #{difyBaseUrl},</if>
+            <if test="documentCount != null">document_count = #{documentCount},</if>
+            <if test="wordCount != null">word_count = #{wordCount},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            update_time = sysdate()
+        </trim>
+        where kb_id = #{kbId}
+    </update>
+
+    <delete id="deleteAiKnowledgeBaseByKbId" parameterType="Long">
+        update ai_knowledge_base set del_flag = '1' where kb_id = #{kbId}
+    </delete>
+
+    <delete id="deleteAiKnowledgeBaseByKbIds" parameterType="String">
+        update ai_knowledge_base set del_flag = '1' where kb_id in
+        <foreach item="kbId" collection="array" open="(" separator="," close=")">
+            #{kbId}
+        </foreach>
+    </delete>
+
+</mapper>

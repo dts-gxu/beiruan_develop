@@ -1,0 +1,22 @@
+# 第三方参考项目（不上传）
+FastGPT-main/
+openclaw-main/
+proj-hp-tdhpai/
+
+# 临时测试文件
+TestDatabaseConnection.java
+
+# 知识库本地文件
+知识库/
+
+# 本地文档和记忆文件
+Dify集成配置指南.md
+# daily_report (通配符方式排除)
+daily_report*.txt
+
+AI_CODE_GENERATION_FRAMEWORK_DESIGN.md
+项目记忆.txt
+启动命令.txt
+
+# 业务文件
+高尔夫球场预订小程序_报价单_第一阶段_v2(1).xlsx

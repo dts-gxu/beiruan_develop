@@ -61,6 +61,15 @@ public class AiDifyConfigServiceImpl implements IAiDifyConfigService
     }
 
     /**
+     * 按类型查询默认配置（不脱敏，内部使用）
+     */
+    @Override
+    public AiDifyConfig selectDefaultConfigByType(String configType)
+    {
+        return aiDifyConfigMapper.selectDefaultConfigByType(configType);
+    }
+
+    /**
      * 新增配置
      */
     @Override

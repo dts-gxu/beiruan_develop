@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org">
+<head>
+	<th:block th:include="include :: header('编辑知识库')" />
+</head>
+<body class="white-bg">
+	<div class="wrapper wrapper-content animated fadeInRight ibox-content">
+		<form class="form-horizontal m" id="form-kb-edit" th:object="${kb}">
+			<input name="kbId" th:field="*{kbId}" type="hidden">
+			<div class="form-group">
+				<label class="col-sm-3 control-label is-required">知识库名称：</label>
+				<div class="col-sm-8">
+					<input name="kbName" th:field="*{kbName}" class="form-control" type="text" required>
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">描述：</label>
+				<div class="col-sm-8">
+					<textarea name="kbDesc" class="form-control" rows="3" th:text="*{kbDesc}"></textarea>
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">分类标签：</label>
+				<div class="col-sm-8">
+					<input name="category" th:field="*{category}" class="form-control" type="text">
+				</div>
+			</div>
+			<h4 class="form-header h4">Dify同步配置</h4>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">Dify API地址：</label>
+				<div class="col-sm-8">
+					<input name="difyBaseUrl" th:field="*{difyBaseUrl}" class="form-control" type="text" placeholder="例如：http://localhost:8888">
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">Dify Dataset API Key：</label>
+				<div class="col-sm-8">
+					<div class="input-group">
+						<input name="difyApiKey" id="difyApiKey" th:field="*{difyApiKey}" class="form-control" type="password">
+						<span class="input-group-btn">
+							<button type="button" class="btn btn-default" onclick="toggleKey()"><i class="fa fa-eye" id="toggleIcon"></i></button>
+						</span>
+					</div>
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">Dify知识库ID：</label>
+				<div class="col-sm-8">
+					<input name="difyDatasetId" th:field="*{difyDatasetId}" class="form-control" type="text" readonly>
+					<span class="help-block m-b-none">自动同步生成，不可手动修改</span>
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">状态：</label>
+				<div class="col-sm-8">
+					<div class="radio-box" th:with="status=*{status}">
+						<input type="radio" name="status" value="0" th:checked="${status == '0'}"> 正常
+						<input type="radio" name="status" value="1" th:checked="${status == '1'}"> 停用
+					</div>
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">备注：</label>
+				<div class="col-sm-8">
+					<textarea name="remark" class="form-control" rows="2" th:text="*{remark}"></textarea>
+				</div>
+			</div>
+		</form>
+	</div>
+	<th:block th:include="include :: footer" />
+	<script th:inline="javascript">
+		var prefix = ctx + "ai/knowledge";
+		$("#form-kb-edit").validate({ focusCleanup: true });
+
+		function submitHandler() {
+			if ($.validate.form()) {
+				$.operate.save(prefix + "/edit", $('#form-kb-edit').serialize());
+			}
+		}
+
+		function toggleKey() {
+			var input = $('#difyApiKey');
+			var icon = $('#toggleIcon');
+			if (input.attr('type') === 'password') {
+				input.attr('type', 'text');
+				icon.removeClass('fa-eye').addClass('fa-eye-slash');
+			} else {
+				input.attr('type', 'password');
+				icon.removeClass('fa-eye-slash').addClass('fa-eye');
+			}
+		}
+	</script>
+</body>
+</html>

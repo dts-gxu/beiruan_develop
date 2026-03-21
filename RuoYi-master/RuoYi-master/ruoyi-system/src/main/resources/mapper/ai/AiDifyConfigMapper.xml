@@ -54,6 +54,13 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         limit 1
     </select>
 
+    <select id="selectDefaultConfigByType" parameterType="String" resultMap="AiDifyConfigResult">
+        <include refid="selectAiDifyConfigVo"/>
+        where config_type = #{configType} and status = '0'
+        order by is_default desc, create_time desc
+        limit 1
+    </select>
+
     <insert id="insertAiDifyConfig" parameterType="AiDifyConfig" useGeneratedKeys="true" keyProperty="configId">
         insert into ai_dify_config
         <trim prefix="(" suffix=")" suffixOverrides=",">

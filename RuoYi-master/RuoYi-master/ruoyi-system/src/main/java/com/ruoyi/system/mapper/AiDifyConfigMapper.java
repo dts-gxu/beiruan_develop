@@ -46,6 +46,11 @@ public interface AiDifyConfigMapper
     public int deleteAiDifyConfigByConfigIds(String[] configIds);
 
     /**
+     * 按类型查询默认配置
+     */
+    public AiDifyConfig selectDefaultConfigByType(String configType);
+
+    /**
      * 重置所有默认标记
      */
     public int resetAllDefault();

@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.core.controller.BaseController;
@@ -36,6 +37,9 @@ public class AiDifyConfigController extends BaseController
 
     @Autowired
     private DifyApiClient difyApiClient;
+
+    @Autowired
+    private DifyKnowledgeApiClient difyKnowledgeApiClient;
 
     @RequiresPermissions("ai:dify:config:view")
     @GetMapping()
@@ -127,17 +131,28 @@ public class AiDifyConfigController extends BaseController
     {
         try
         {
-            AiDifyConfig config = aiDifyConfigService.selectAiDifyConfigByConfigId(configId);
-            if (config == null)
+            AiDifyConfig fullConfig = ((AiDifyConfigServiceImpl) aiDifyConfigService).selectRawConfigById(configId);
+            if (fullConfig == null)
             {
                 return AjaxResult.error("配置不存在");
             }
-            AiDifyConfig fullConfig = ((AiDifyConfigServiceImpl) aiDifyConfigService).selectRawConfigById(configId);
-            String appName = difyApiClient.getAppInfo(fullConfig.getApiKey(), fullConfig.getBaseUrl());
+
+            String result;
+            // Dataset类型用知识库API测试
+            if ("3".equals(fullConfig.getConfigType()))
+            {
+                com.fasterxml.jackson.databind.JsonNode datasets = difyKnowledgeApiClient.listDatasets(
+                    fullConfig.getBaseUrl(), fullConfig.getApiKey(), 1, 5);
+                int total = datasets.path("total").asInt(0);
+                result = "知识库API连接成功！共 " + total + " 个知识库";
+            }
+            else
+            {
+                result = "连接成功！应用名称：" + difyApiClient.getAppInfo(fullConfig.getApiKey(), fullConfig.getBaseUrl());
+            }
 
             ((AiDifyConfigServiceImpl) aiDifyConfigService).updateTestResult(configId, true);
-
-            return AjaxResult.success("连接成功！应用名称：" + appName);
+            return AjaxResult.success(result);
         }
         catch (Exception e)
         {
@@ -152,16 +167,45 @@ public class AiDifyConfigController extends BaseController
     @RequiresPermissions("ai:dify:config:test")
     @PostMapping("/testNewConnection")
     @ResponseBody
-    public AjaxResult testNewConnection(String baseUrl, String apiKey)
+    public AjaxResult testNewConnection(String baseUrl, String apiKey, @RequestParam(value = "configType", defaultValue = "0") String configType)
     {
         try
         {
-            String appName = difyApiClient.getAppInfo(apiKey, baseUrl);
-            return AjaxResult.success("连接成功！应用名称：" + appName);
+            String result;
+            if ("3".equals(configType))
+            {
+                com.fasterxml.jackson.databind.JsonNode datasets = difyKnowledgeApiClient.listDatasets(baseUrl, apiKey, 1, 5);
+                int total = datasets.path("total").asInt(0);
+                result = "知识库API连接成功！共 " + total + " 个知识库";
+            }
+            else
+            {
+                result = "连接成功！应用名称：" + difyApiClient.getAppInfo(apiKey, baseUrl);
+            }
+            return AjaxResult.success(result);
         }
         catch (Exception e)
         {
             return AjaxResult.error("连接失败：" + e.getMessage());
         }
+    }
+
+    /**
+     * 获取Dataset类型的全局配置（供知识库模块使用）
+     */
+    @PostMapping("/getDatasetConfig")
+    @ResponseBody
+    public AjaxResult getDatasetConfig()
+    {
+        AiDifyConfig config = aiDifyConfigService.selectDefaultConfigByType("3");
+        if (config == null)
+        {
+            return AjaxResult.error("未配置Dify知识库API，请先在Dify配置管理中添加Dataset类型配置");
+        }
+        AjaxResult result = AjaxResult.success();
+        result.put("baseUrl", config.getBaseUrl());
+        result.put("apiKey", config.getApiKey());
+        result.put("configName", config.getConfigName());
+        return result;
     }
 }

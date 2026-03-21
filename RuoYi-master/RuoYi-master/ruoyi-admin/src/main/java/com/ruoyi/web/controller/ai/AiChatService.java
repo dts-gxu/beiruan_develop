@@ -103,6 +103,56 @@ public class AiChatService
         return chat(userMessage, GENERAL_CHAT_PROMPT);
     }
 
+    /** 知识库RAG System Prompt - 前缀（基本规则 + 知识库内容开始标记） */
+    private static final String RAG_SYSTEM_PROMPT_PREFIX = """
+            你是一个专业的AI助手。请根据下方知识库内容回答用户问题。
+            优先使用知识库内容，直接回答，Markdown格式，中文回复。
+
+            【知识库内容】
+            """;
+
+    /** 知识库RAG System Prompt - 后缀（在知识库内容之后，离AI生成最近，最不可能被忽略） */
+    private static final String RAG_SYSTEM_PROMPT_SUFFIX = """
+
+            【引用标注规则 - 必须严格遵守】
+            在回答中，每当你使用了上面某条知识库内容时，必须在该句末尾用markdown链接格式标注来源：[编号](CITE)
+            - 编号对应知识库内容前的数字
+            - 一句话可以有多个来源，连续写多个链接
+            - 不要在末尾单独列参考文献
+
+            示例输出：
+            数据库表名应使用小写字母和下划线[2](CITE)。事务中SQL不超过5个[5](CITE)。主键用自增ID，高并发用分布式方案[2](CITE)[7](CITE)。
+            """;
+
+    /**
+     * 带知识库上下文的同步聊天（RAG模式）
+     * @param userMessage 用户消息
+     * @param knowledgeContext 知识库检索结果
+     * @return AI回复
+     */
+    public String chatWithKnowledge(String userMessage, String knowledgeContext)
+    {
+        // 使用字符串拼接代替String.format，避免知识库内容含%字符导致异常
+        String ragPrompt = RAG_SYSTEM_PROMPT_PREFIX + knowledgeContext + RAG_SYSTEM_PROMPT_SUFFIX;
+        log.info("RAG同步聊天: 知识库上下文长度={}字符, 用户消息长度={}字符", knowledgeContext.length(), userMessage.length());
+        return chat(userMessage, ragPrompt);
+    }
+
+    /**
+     * 带知识库上下文的流式聊天（RAG模式）
+     * @param userMessage 用户消息
+     * @param knowledgeContext 知识库检索结果
+     * @param handler 流式响应处理器
+     */
+    public void chatStreamWithKnowledge(String userMessage, String knowledgeContext,
+            StreamingChatResponseHandler handler)
+    {
+        // 使用字符串拼接代替String.format，避免知识库内容含%字符导致异常
+        String ragPrompt = RAG_SYSTEM_PROMPT_PREFIX + knowledgeContext + RAG_SYSTEM_PROMPT_SUFFIX;
+        log.info("RAG流式聊天: 知识库上下文长度={}字符, 用户消息长度={}字符", knowledgeContext.length(), userMessage.length());
+        chatStream(userMessage, ragPrompt, handler);
+    }
+
     /** 自动续写最大轮数 */
     private static final int MAX_CONTINUATION_ROUNDS = 3;
 

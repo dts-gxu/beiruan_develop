@@ -26,6 +26,11 @@ public interface IAiDifyConfigService
     public AiDifyConfig selectDefaultConfig();
 
     /**
+     * 按类型查询默认配置（如 3=Dataset知识库）
+     */
+    public AiDifyConfig selectDefaultConfigByType(String configType);
+
+    /**
      * 新增配置
      */
     public int insertAiDifyConfig(AiDifyConfig aiDifyConfig);

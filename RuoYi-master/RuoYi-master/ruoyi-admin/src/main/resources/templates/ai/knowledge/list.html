@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:shiro="http://www.pollix.at/thymeleaf/shiro">
+<head>
+	<th:block th:include="include :: header('知识库管理')" />
+</head>
+<body class="gray-bg">
+	<div class="container-div">
+		<div class="row">
+			<div class="col-sm-12 search-collapse">
+				<form id="formId">
+					<div class="select-list">
+						<ul>
+							<li>
+								<label>知识库名称：</label>
+								<input type="text" name="kbName"/>
+							</li>
+							<li>
+								<label>状态：</label>
+								<select name="status">
+									<option value="">所有</option>
+									<option value="0">正常</option>
+									<option value="1">停用</option>
+								</select>
+							</li>
+							<li>
+								<a class="btn btn-primary btn-rounded btn-sm" onclick="$.table.search()"><i class="fa fa-search"></i>&nbsp;搜索</a>
+								<a class="btn btn-warning btn-rounded btn-sm" onclick="$.form.reset()"><i class="fa fa-refresh"></i>&nbsp;重置</a>
+							</li>
+						</ul>
+					</div>
+				</form>
+			</div>
+
+			<div class="btn-group-sm" id="toolbar" role="group">
+				<a class="btn btn-success" onclick="$.operate.add()">
+					<i class="fa fa-plus"></i> 新建知识库
+				</a>
+				<a class="btn btn-primary" onclick="showImportModal()">
+					<i class="fa fa-cloud-download"></i> 从Dify导入
+				</a>
+				<a class="btn btn-danger multiple disabled" onclick="$.operate.removeAll()">
+					<i class="fa fa-remove"></i> 删除
+				</a>
+			</div>
+			<div class="col-sm-12 select-table table-striped">
+				<table id="bootstrap-table"></table>
+			</div>
+		</div>
+	</div>
+	<!-- 从Dify导入模态框 -->
+	<div class="modal fade" id="importDifyModal" tabindex="-1" role="dialog">
+		<div class="modal-dialog" role="document">
+			<div class="modal-content">
+				<div class="modal-header">
+					<button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+					<h4 class="modal-title"><i class="fa fa-cloud-download"></i> 从Dify批量导入知识库</h4>
+				</div>
+				<div class="modal-body">
+					<div class="alert alert-info" id="importConfigStatus" style="display:none;">
+						<i class="fa fa-check-circle"></i> 已自动读取全局Dify配置：<b id="importConfigName"></b>
+					</div>
+					<form class="form-horizontal">
+						<div class="form-group">
+							<label class="col-sm-4 control-label is-required">Dify API地址：</label>
+							<div class="col-sm-8">
+								<input type="text" id="importDifyUrl" class="form-control" placeholder="例如：http://localhost:8888">
+							</div>
+						</div>
+						<div class="form-group">
+							<label class="col-sm-4 control-label is-required">Dataset API Key：</label>
+							<div class="col-sm-8">
+								<div class="input-group">
+									<input type="password" id="importDifyKey" class="form-control" placeholder="dataset-xxxxxxxx">
+									<span class="input-group-btn">
+										<button type="button" class="btn btn-default" onclick="toggleKeyVisibility()"><i class="fa fa-eye"></i></button>
+									</span>
+								</div>
+								<span class="help-block m-b-none">在 Dify配置管理 中配置Dataset类型即可自动填充</span>
+							</div>
+						</div>
+					</form>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-default" data-dismiss="modal">取消</button>
+					<button type="button" class="btn btn-primary" onclick="doImportFromDify()">开始导入</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<th:block th:include="include :: footer" />
+	<script th:inline="javascript">
+		var prefix = ctx + "ai/knowledge";
+
+		$(function() {
+			var options = {
+				url: prefix + "/list",
+				createUrl: prefix + "/add",
+				updateUrl: prefix + "/edit/{id}",
+				removeUrl: prefix + "/remove",
+				modalName: "知识库",
+				columns: [{
+					checkbox: true
+				},
+				{
+					field: 'kbId',
+					title: 'ID',
+					visible: false
+				},
+				{
+					field: 'kbName',
+					title: '知识库名称',
+					formatter: function(value, row, index) {
+						return '<a href="javascript:void(0)" onclick="viewDocuments(\'' + row.kbId + '\')">' + value + '</a>';
+					}
+				},
+				{
+					field: 'kbDesc',
+					title: '描述'
+				},
+				{
+					field: 'category',
+					title: '分类'
+				},
+				{
+					field: 'documentCount',
+					title: '文档数',
+					align: 'center'
+				},
+				{
+					field: 'difyDatasetId',
+					title: 'Dify同步',
+					align: 'center',
+					formatter: function(value, row, index) {
+						if (value && value.length > 0) {
+							return '<span class="badge badge-success" title="' + value + '">已同步</span>';
+						}
+						return '<span class="badge badge-secondary">未同步</span>';
+					}
+				},
+				{
+					field: 'status',
+					title: '状态',
+					align: 'center',
+					formatter: function(value, row, index) {
+						return value === '0' ? '<span class="badge badge-success">正常</span>' : '<span class="badge badge-danger">停用</span>';
+					}
+				},
+				{
+					field: 'createTime',
+					title: '创建时间'
+				},
+				{
+					title: '操作',
+					align: 'center',
+					formatter: function(value, row, index) {
+						var actions = [];
+						actions.push('<a class="btn btn-primary btn-xs" href="javascript:void(0)" onclick="viewDocuments(\'' + row.kbId + '\')"><i class="fa fa-file-text-o"></i>文档</a> ');
+						actions.push('<a class="btn btn-info btn-xs" href="javascript:void(0)" onclick="syncFromDify(\'' + row.kbId + '\')"><i class="fa fa-refresh"></i>同步</a> ');
+						actions.push('<a class="btn btn-success btn-xs" href="javascript:void(0)" onclick="$.operate.edit(\'' + row.kbId + '\')"><i class="fa fa-edit"></i>编辑</a> ');
+						actions.push('<a class="btn btn-danger btn-xs" href="javascript:void(0)" onclick="$.operate.remove(\'' + row.kbId + '\')"><i class="fa fa-remove"></i>删除</a>');
+						return actions.join('');
+					}
+				}]
+			};
+			$.table.init(options);
+		});
+
+		/* 查看文档列表 */
+		function viewDocuments(kbId) {
+			var url = prefix + "/documents/" + kbId;
+			$.modal.openTab("文档管理", url);
+		}
+
+		/* 从Dify同步单个知识库的文档 */
+		function syncFromDify(kbId) {
+			$.modal.loading("正在同步...");
+			$.ajax({
+				url: prefix + "/syncFromDify",
+				type: "post",
+				data: { kbId: kbId },
+				success: function(result) {
+					$.modal.closeLoading();
+					if (result.code == 0) {
+						$.modal.msgSuccess(result.msg);
+					} else {
+						$.modal.msgError(result.msg);
+					}
+					$.table.refresh();
+				}
+			});
+		}
+
+		/* 显示从Dify导入模态框（自动读取全局Dataset配置） */
+		function showImportModal() {
+			$('#importConfigStatus').hide();
+			$.ajax({
+				url: ctx + "ai/dify/config/getDatasetConfig",
+				type: "post",
+				success: function(res) {
+					if (res.code == 0) {
+						$('#importDifyUrl').val(res.baseUrl);
+						$('#importDifyKey').val(res.apiKey);
+						$('#importConfigName').text(res.configName);
+						$('#importConfigStatus').show();
+					}
+				}
+			});
+			$('#importDifyModal').modal('show');
+		}
+
+		/* 切换API Key显示/隐藏 */
+		function toggleKeyVisibility() {
+			var input = $('#importDifyKey');
+			if (input.attr('type') === 'password') {
+				input.attr('type', 'text');
+			} else {
+				input.attr('type', 'password');
+			}
+		}
+
+		/* 执行从Dify批量导入知识库 */
+		function doImportFromDify() {
+			var difyBaseUrl = $('#importDifyUrl').val().trim();
+			var difyApiKey = $('#importDifyKey').val().trim();
+			if (!difyBaseUrl || !difyApiKey) {
+				$.modal.msgWarning("请填写Dify API地址和API Key");
+				return;
+			}
+			$('#importDifyModal').modal('hide');
+			$.modal.loading("正在从Dify导入...");
+			$.ajax({
+				url: prefix + "/importFromDify",
+				type: "post",
+				data: { difyBaseUrl: difyBaseUrl, difyApiKey: difyApiKey },
+				success: function(result) {
+					$.modal.closeLoading();
+					if (result.code == 0) {
+						$.modal.msgSuccess(result.msg);
+					} else {
+						$.modal.msgError(result.msg);
+					}
+					$.table.refresh();
+				},
+				error: function() {
+					$.modal.closeLoading();
+					$.modal.msgError("导入失败，请检查Dify服务是否正常");
+				}
+			});
+		}
+	</script>
+</body>
+</html>

@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.AiKnowledgeDocumentMapper">
+    
+    <resultMap type="AiKnowledgeDocument" id="AiKnowledgeDocumentResult">
+        <id     property="docId"            column="doc_id"             />
+        <result property="kbId"             column="kb_id"              />
+        <result property="docName"          column="doc_name"           />
+        <result property="docType"          column="doc_type"           />
+        <result property="content"          column="content"            />
+        <result property="filePath"         column="file_path"          />
+        <result property="fileSize"         column="file_size"          />
+        <result property="difyDocumentId"   column="dify_document_id"   />
+        <result property="difyBatch"        column="dify_batch"         />
+        <result property="indexingStatus"   column="indexing_status"    />
+        <result property="wordCount"        column="word_count"         />
+        <result property="hitCount"         column="hit_count"          />
+        <result property="enabled"          column="enabled"            />
+        <result property="status"           column="status"             />
+        <result property="delFlag"          column="del_flag"           />
+        <result property="createBy"         column="create_by"          />
+        <result property="createTime"       column="create_time"        />
+        <result property="updateBy"         column="update_by"          />
+        <result property="updateTime"       column="update_time"        />
+        <result property="remark"           column="remark"             />
+    </resultMap>
+
+    <sql id="selectAiKnowledgeDocumentVo">
+        select doc_id, kb_id, doc_name, doc_type, file_path, file_size,
+               dify_document_id, dify_batch, indexing_status, word_count, hit_count,
+               enabled, status, del_flag, create_by, create_time, update_by, update_time, remark
+        from ai_knowledge_document
+    </sql>
+
+    <select id="selectAiKnowledgeDocumentByDocId" parameterType="Long" resultMap="AiKnowledgeDocumentResult">
+        select doc_id, kb_id, doc_name, doc_type, content, file_path, file_size,
+               dify_document_id, dify_batch, indexing_status, word_count, hit_count,
+               enabled, status, del_flag, create_by, create_time, update_by, update_time, remark
+        from ai_knowledge_document
+        where doc_id = #{docId} and del_flag = '0'
+    </select>
+
+    <select id="selectAiKnowledgeDocumentList" parameterType="AiKnowledgeDocument" resultMap="AiKnowledgeDocumentResult">
+        <include refid="selectAiKnowledgeDocumentVo"/>
+        <where>
+            del_flag = '0'
+            <if test="kbId != null">
+                AND kb_id = #{kbId}
+            </if>
+            <if test="docName != null and docName != ''">
+                AND doc_name like concat('%', #{docName}, '%')
+            </if>
+            <if test="docType != null and docType != ''">
+                AND doc_type = #{docType}
+            </if>
+            <if test="indexingStatus != null and indexingStatus != ''">
+                AND indexing_status = #{indexingStatus}
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <insert id="insertAiKnowledgeDocument" parameterType="AiKnowledgeDocument" useGeneratedKeys="true" keyProperty="docId">
+        insert into ai_knowledge_document
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="kbId != null">kb_id,</if>
+            <if test="docName != null and docName != ''">doc_name,</if>
+            <if test="docType != null">doc_type,</if>
+            <if test="content != null">content,</if>
+            <if test="filePath != null">file_path,</if>
+            <if test="fileSize != null">file_size,</if>
+            <if test="difyDocumentId != null">dify_document_id,</if>
+            <if test="difyBatch != null">dify_batch,</if>
+            <if test="indexingStatus != null">indexing_status,</if>
+            <if test="wordCount != null">word_count,</if>
+            <if test="hitCount != null">hit_count,</if>
+            <if test="enabled != null">enabled,</if>
+            <if test="status != null">status,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="remark != null">remark,</if>
+            create_time
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="kbId != null">#{kbId},</if>
+            <if test="docName != null and docName != ''">#{docName},</if>
+            <if test="docType != null">#{docType},</if>
+            <if test="content != null">#{content},</if>
+            <if test="filePath != null">#{filePath},</if>
+            <if test="fileSize != null">#{fileSize},</if>
+            <if test="difyDocumentId != null">#{difyDocumentId},</if>
+            <if test="difyBatch != null">#{difyBatch},</if>
+            <if test="indexingStatus != null">#{indexingStatus},</if>
+            <if test="wordCount != null">#{wordCount},</if>
+            <if test="hitCount != null">#{hitCount},</if>
+            <if test="enabled != null">#{enabled},</if>
+            <if test="status != null">#{status},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="remark != null">#{remark},</if>
+            sysdate()
+        </trim>
+    </insert>
+
+    <update id="updateAiKnowledgeDocument" parameterType="AiKnowledgeDocument">
+        update ai_knowledge_document
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="docName != null and docName != ''">doc_name = #{docName},</if>
+            <if test="docType != null">doc_type = #{docType},</if>
+            <if test="content != null">content = #{content},</if>
+            <if test="filePath != null">file_path = #{filePath},</if>
+            <if test="fileSize != null">file_size = #{fileSize},</if>
+            <if test="difyDocumentId != null">dify_document_id = #{difyDocumentId},</if>
+            <if test="difyBatch != null">dify_batch = #{difyBatch},</if>
+            <if test="indexingStatus != null">indexing_status = #{indexingStatus},</if>
+            <if test="wordCount != null">word_count = #{wordCount},</if>
+            <if test="hitCount != null">hit_count = #{hitCount},</if>
+            <if test="enabled != null">enabled = #{enabled},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            update_time = sysdate()
+        </trim>
+        where doc_id = #{docId}
+    </update>
+
+    <delete id="deleteAiKnowledgeDocumentByDocId" parameterType="Long">
+        update ai_knowledge_document set del_flag = '1' where doc_id = #{docId}
+    </delete>
+
+    <delete id="deleteAiKnowledgeDocumentByDocIds" parameterType="String">
+        update ai_knowledge_document set del_flag = '1' where doc_id in
+        <foreach item="docId" collection="array" open="(" separator="," close=")">
+            #{docId}
+        </foreach>
+    </delete>
+
+    <delete id="deleteAiKnowledgeDocumentByKbId" parameterType="Long">
+        update ai_knowledge_document set del_flag = '1' where kb_id = #{kbId}
+    </delete>
+
+    <select id="selectAiKnowledgeDocumentListWithContent" parameterType="Long" resultMap="AiKnowledgeDocumentResult">
+        select doc_id, kb_id, doc_name, doc_type, content, file_path, file_size,
+               dify_document_id, dify_batch, indexing_status, word_count, hit_count,
+               enabled, status, del_flag, create_by, create_time, update_by, update_time, remark
+        from ai_knowledge_document
+        where kb_id = #{kbId} and del_flag = '0' and enabled = '1'
+        order by create_time desc
+    </select>
+
+    <select id="countByKbId" parameterType="Long" resultType="int">
+        select count(*) from ai_knowledge_document where kb_id = #{kbId} and del_flag = '0'
+    </select>
+
+    <select id="selectByDifyDocumentId" parameterType="String" resultMap="AiKnowledgeDocumentResult">
+        select doc_id, kb_id, doc_name, doc_type, file_path, file_size,
+               dify_document_id, indexing_status, word_count, enabled, status
+        from ai_knowledge_document
+        where dify_document_id = #{difyDocumentId} and del_flag = '0'
+        limit 1
+    </select>
+
+</mapper>

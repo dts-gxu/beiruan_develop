@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org">
+<head>
+	<th:block th:include="include :: header('新建知识库')" />
+</head>
+<body class="white-bg">
+	<div class="wrapper wrapper-content animated fadeInRight ibox-content">
+		<form class="form-horizontal m" id="form-kb-add">
+			<div class="form-group">
+				<label class="col-sm-3 control-label is-required">知识库名称：</label>
+				<div class="col-sm-8">
+					<input name="kbName" class="form-control" type="text" required placeholder="请输入知识库名称">
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">描述：</label>
+				<div class="col-sm-8">
+					<textarea name="kbDesc" class="form-control" rows="3" placeholder="知识库描述"></textarea>
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">分类标签：</label>
+				<div class="col-sm-8">
+					<input name="category" class="form-control" type="text" placeholder="例如：框架文档、数据库规范">
+				</div>
+			</div>
+			<h4 class="form-header h4">Dify同步配置（可选）</h4>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">Dify API地址：</label>
+				<div class="col-sm-8">
+					<input name="difyBaseUrl" class="form-control" type="text" placeholder="例如：http://localhost:8888">
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">Dify Dataset API Key：</label>
+				<div class="col-sm-8">
+					<div class="input-group">
+						<input name="difyApiKey" id="difyApiKey" class="form-control" type="password" placeholder="dataset-xxxxxxxx">
+						<span class="input-group-btn">
+							<button type="button" class="btn btn-default" onclick="toggleKey()"><i class="fa fa-eye" id="toggleIcon"></i></button>
+						</span>
+					</div>
+					<span class="help-block m-b-none">已从Dify配置管理自动填充，也可手动修改</span>
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">状态：</label>
+				<div class="col-sm-8">
+					<div class="radio-box">
+						<input type="radio" name="status" value="0" checked> 正常
+						<input type="radio" name="status" value="1"> 停用
+					</div>
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">备注：</label>
+				<div class="col-sm-8">
+					<textarea name="remark" class="form-control" rows="2"></textarea>
+				</div>
+			</div>
+		</form>
+	</div>
+	<th:block th:include="include :: footer" />
+	<script th:inline="javascript">
+		var prefix = ctx + "ai/knowledge";
+		$("#form-kb-add").validate({ focusCleanup: true });
+
+		/* 自动读取全局Dify Dataset配置填充 */
+		$.ajax({
+			url: ctx + "ai/dify/config/getDatasetConfig",
+			type: "post",
+			success: function(res) {
+				if (res.code == 0) {
+					var urlInput = $('input[name="difyBaseUrl"]');
+					var keyInput = $('input[name="difyApiKey"]');
+					if (!urlInput.val()) urlInput.val(res.baseUrl);
+					if (!keyInput.val()) keyInput.val(res.apiKey);
+				}
+			}
+		});
+
+		function submitHandler() {
+			if ($.validate.form()) {
+				$.operate.save(prefix + "/add", $('#form-kb-add').serialize());
+			}
+		}
+
+		function toggleKey() {
+			var input = $('#difyApiKey');
+			var icon = $('#toggleIcon');
+			if (input.attr('type') === 'password') {
+				input.attr('type', 'text');
+				icon.removeClass('fa-eye').addClass('fa-eye-slash');
+			} else {
+				input.attr('type', 'password');
+				icon.removeClass('fa-eye-slash').addClass('fa-eye');
+			}
+		}
+	</script>
+</body>
+</html>
